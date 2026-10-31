@@ -17,44 +17,116 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="KTM Bus Map" />
+    <script>
+      // Theme before first paint, so the boot screen and app open in the saved theme
+      try {
+        var theme = localStorage.getItem('ktm_transit_theme');
+        if (theme === 'dark' || (!theme && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark');
+      } catch (e) {}
+    </script>
     <style>
-      #boot { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: #fff; color: #737373; font: 500 13px system-ui, sans-serif; }
-      html.dark, html.dark body, html.dark #boot { background: #0a0a0a; }
-      #boot img { width: 72px; height: 72px; border-radius: 16px; }
-      #boot button { margin-top: 6px; padding: 8px 16px; border: 0; border-radius: 999px; background: #0a0a0a; color: #fff; font: inherit; cursor: pointer; }
-      html.dark #boot button { background: #fff; color: #0a0a0a; }
+      /* Boot screen: static HTML shown until the app paints (main.jsx fades it out). Plain CSS: Tailwind may not be loaded yet. */
+      #boot {
+        --bg: #ffffff; --fg: #0a0a0a; --muted: #737373; --grid: rgb(0 0 0 / 0.07); --glow: transparent;
+        --tile-ring: rgb(0 0 0 / 0.06); --tile-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 12px 32px -8px rgb(0 0 0 / 0.25);
+        --btn-bg: #0a0a0a; --btn-fg: #fff; --btn-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+        position: fixed; inset: 0; z-index: 3000; display: grid; place-items: center; background: var(--bg); color: var(--fg);
+        font-family: Geist, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased;
+        transition: opacity 0.35s ease, visibility 0.35s;
+      }
+      html.dark #boot {
+        --bg: #0a0a0a; --fg: #fafafa; --muted: #a3a3a3; --grid: rgb(255 255 255 / 0.06); --glow: rgb(255 255 255 / 0.07);
+        --tile-ring: rgb(255 255 255 / 0.12); --tile-shadow: 0 0 0 1px rgb(255 255 255 / 0.04), 0 16px 48px -12px rgb(0 0 0 / 0.8);
+        --btn-bg: #fafafa; --btn-fg: #0a0a0a; --btn-shadow: 0 0 24px rgb(255 255 255 / 0.18);
+      }
+      html.dark, html.dark body { background: #0a0a0a; }
+      /* Dot grid fading out from the centre, with a soft glow behind the logo in dark mode */
+      #boot::before {
+        content: ''; position: absolute; inset: 0; background-image: radial-gradient(var(--grid) 1px, transparent 1.2px); background-size: 22px 22px;
+        -webkit-mask-image: radial-gradient(ellipse 60% 50% at 50% 45%, #000 20%, transparent 75%);
+        mask-image: radial-gradient(ellipse 60% 50% at 50% 45%, #000 20%, transparent 75%);
+      }
+      #boot::after { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 50% 42%, var(--glow), transparent 35%); pointer-events: none; }
+      #boot.boot-done { opacity: 0; visibility: hidden; pointer-events: none; }
+      /* Content appears after a beat, so fast starts don't flash it */
+      #boot .boot-card { position: relative; margin-top: -24px; z-index: 1; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 24px; animation: boot-in 0.4s ease 0.15s both; }
+      @keyframes boot-in { from { opacity: 0; transform: translateY(6px); } }
+      #boot .boot-logo { width: 84px; height: 84px; border-radius: 19px; box-shadow: var(--tile-shadow), 0 0 0 1px var(--tile-ring); }
+      /* Faint tracks stay; the bright route lines draw in and run off, one after another */
+      #boot .route { stroke-dasharray: 1 1; stroke-dashoffset: 1; animation: boot-route 2.4s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
+      #boot .route-2 { animation-delay: 0.2s; }
+      #boot .route-3 { animation-delay: 0.4s; }
+      @keyframes boot-route { 0% { stroke-dashoffset: 1; } 40%, 60% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -1; } }
+      #boot h1 { margin: 22px 0 0; font-size: 17px; font-weight: 600; letter-spacing: -0.02em; }
+      #boot p { margin: 6px 0 0; font-size: 13px; font-weight: 450; color: var(--muted); }
+      #boot .boot-slow { position: absolute; top: 100%; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; margin-top: -6px; animation: boot-in 0.3s ease both; }
+      #boot .boot-slow[hidden] { display: none; }
+      #boot button {
+        display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 18px; border: 0; border-radius: 999px;
+        background: var(--btn-bg); color: var(--btn-fg); box-shadow: var(--btn-shadow); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+        transition: transform 0.15s ease, opacity 0.15s;
+      }
+      #boot button:active { transform: scale(0.97); }
+      #boot button:disabled { opacity: 0.6; }
+      #boot button:disabled svg { animation: boot-spin 0.8s linear infinite; }
+      #boot button svg { width: 15px; height: 15px; }
+      @keyframes boot-spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) {
+        #boot .route { animation: none; stroke-dashoffset: 0; }
+        #boot .boot-logo { animation: boot-pulse 1.6s ease-in-out infinite alternate; }
+        @keyframes boot-pulse { to { opacity: 0.6; } }
+      }
     </style>
   </head>
   <body class="h-full w-full bg-white text-neutral-900 overflow-hidden antialiased select-none">
-    <div id="root" class="h-full w-full relative flex flex-col bg-white">
-      <!-- Shown until React mounts (it replaces #root's contents) -->
-      <div id="boot">
-        <img src="./icons/icon-192.png" alt="" />
-        <span>Loading map…</span>
-        <button id="boot-repair" type="button" hidden>Still loading? Reload</button>
+    <!-- Boot screen: visible until the app paints; main.jsx fades it out -->
+    <div id="boot" role="status" aria-live="polite">
+      <div class="boot-card">
+        <svg class="boot-logo" viewBox="0 0 512 512" aria-hidden="true">
+          <rect width="512" height="512" rx="112" fill="#0a0a0a" />
+          <g fill="none" stroke-width="30" stroke-linecap="round" opacity="0.28">
+            <line x1="112" y1="256" x2="400" y2="256" stroke="#1ba546" />
+            <line x1="256" y1="112" x2="256" y2="400" stroke="#c99629" />
+            <line x1="142" y1="370" x2="370" y2="142" stroke="#e11d48" />
+          </g>
+          <g fill="none" stroke-width="30" stroke-linecap="round">
+            <line class="route route-1" x1="112" y1="256" x2="400" y2="256" stroke="#1ba546" pathLength="1" />
+            <line class="route route-2" x1="256" y1="112" x2="256" y2="400" stroke="#c99629" pathLength="1" />
+            <line class="route route-3" x1="142" y1="370" x2="370" y2="142" stroke="#e11d48" pathLength="1" />
+          </g>
+          <g fill="#fff" stroke="#0a0a0a" stroke-width="12">
+            <circle cx="256" cy="256" r="20" /><circle cx="256" cy="112" r="20" /><circle cx="256" cy="400" r="20" />
+            <circle cx="112" cy="256" r="20" /><circle cx="400" cy="256" r="20" /><circle cx="142" cy="370" r="20" /><circle cx="370" cy="142" r="20" />
+          </g>
+        </svg>
+        <h1>Kathmandu Bus Map</h1>
+        <p id="boot-text">Loading map…</p>
+        <div id="boot-slow" class="boot-slow" hidden>
+          <button id="boot-repair" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /></svg>
+            Reload
+          </button>
+        </div>
       </div>
     </div>
+    <div id="root" class="h-full w-full relative flex flex-col bg-white"></div>
     <script>
-      (function () {
-        try {
-          var theme = localStorage.getItem('ktm_transit_theme');
-          if (theme === 'dark' || (!theme && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark');
-        } catch (e) {}
-        // Escape hatch if the app never starts: drop the app-shell caches and service worker (saved map tiles stay) and reload
-        setTimeout(function () {
-          var button = document.getElementById('boot-repair');
-          if (!button) return;
-          button.hidden = false;
-          button.onclick = function () {
-            button.disabled = true;
-            if (!navigator.onLine || !('serviceWorker' in navigator)) return location.reload();
-            Promise.all([
-              navigator.serviceWorker.getRegistrations().then(function (regs) { return Promise.all(regs.map(function (r) { return r.unregister(); })); }),
-              caches.keys().then(function (names) { return Promise.all(names.filter(function (n) { return n.indexOf('ktm-shell-') === 0; }).map(function (n) { return caches.delete(n); })); }),
-            ]).finally(function () { location.reload(); });
-          };
-        }, 8000);
-      })();
+      // Escape hatch if the app never starts: drop the app-shell caches and service worker (saved map tiles stay) and reload
+      setTimeout(function () {
+        var boot = document.getElementById('boot');
+        if (!boot || boot.classList.contains('boot-done')) return;
+        var button = document.getElementById('boot-repair');
+        document.getElementById('boot-text').textContent = 'Taking longer than usual.';
+        document.getElementById('boot-slow').hidden = false;
+        button.onclick = function () {
+          button.disabled = true;
+          if (!navigator.onLine || !('serviceWorker' in navigator)) return location.reload();
+          Promise.all([
+            navigator.serviceWorker.getRegistrations().then(function (regs) { return Promise.all(regs.map(function (r) { return r.unregister(); })); }),
+            caches.keys().then(function (names) { return Promise.all(names.filter(function (n) { return n.indexOf('ktm-shell-') === 0; }).map(function (n) { return caches.delete(n); })); }),
+          ]).finally(function () { location.reload(); });
+        };
+      }, 4000);
     </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>

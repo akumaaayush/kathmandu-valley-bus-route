@@ -8,7 +8,7 @@ import MapSearchBar from './components/MapSearchBar';
 import SpotBanner from './components/SpotBanner';
 import RouteBanner from './components/RouteBanner';
 import LineChooser from './components/LineChooser';
-import { loadLineFinder } from './usePlanner';
+import { loadLineFinder, loadPlanner } from './usePlanner';
 import { getOperatorRoutes } from './data/dedicatedRoutesData';
 import { BUS_SERVICES } from './data/legendData';
 import { readShareLink, writeShareLink } from './shareLink';
@@ -72,6 +72,16 @@ export default function App() {
     } catch (e) {}
   }, [theme]);
 
+  // Fade out the boot screen from index.html once the app has painted
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      const boot = document.getElementById('boot');
+      if (!boot) return;
+      boot.classList.add('boot-done');
+      setTimeout(() => boot.remove(), 400);
+    });
+  }, []);
+
   const handleToggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
@@ -82,8 +92,31 @@ export default function App() {
 
   // Restore the map view from a shared link (MapViewer registers its controls before this runs)
   useEffect(() => {
-    const { service, subRouteCodes, place, trip } = initialLink;
+    const { service, subRouteCodes, place, trip, spot: sharedSpot } = initialLink;
     if (trip) return; // the trip panel restores itself
+    // "Lines here": rebuild the card from the stop network (unknown codes are dropped)
+    if (sharedSpot && !service) {
+      let cancelled = false;
+      loadPlanner().then(({ lines, stations, linesAtStop }) => {
+        if (cancelled) return;
+        const byCode = (code) => lines.find((l) => l.codes[0] === code);
+        const spotLines = sharedSpot.codes.map(byCode).filter(Boolean);
+        if (spotLines.length === 0) return;
+        const stop = stations.find((st) => Math.hypot(st.x - sharedSpot.x, st.y - sharedSpot.y) <= 1.5) || null;
+        openSpot({
+          title: stop?.name ?? 'Lines here',
+          lines: spotLines,
+          selectedIds: sharedSpot.selected.map(byCode).filter(Boolean).map((l) => l.svgId),
+          stop,
+          stopLines: stop ? linesAtStop(stop) : null,
+          at: { x: sharedSpot.x, y: sharedSpot.y },
+        });
+        if (!place) mapControlsRef.current?.flyToLocation(sharedSpot.x, sharedSpot.y, 5.2);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
     if (place) {
       const subRoute = service && subRouteCodes.length === 1
         ? getOperatorRoutes(service.name).find((sr) => sr.code === subRouteCodes[0])
@@ -107,8 +140,15 @@ export default function App() {
       subRouteCodes: selectedSubRouteCodes,
       place: activePlace,
       trip: isTripOpen ? tripShare : null,
+      spot: spot?.at && !activeRoute && !isTripOpen
+        ? {
+            ...spot.at,
+            codes: spot.lines.map((l) => l.codes[0]),
+            selected: spot.lines.filter((l) => spot.selectedIds.includes(l.svgId)).map((l) => l.codes[0]),
+          }
+        : null,
     });
-  }, [activeRoute, selectedSubRouteCodes, activePlace, isTripOpen, tripShare]);
+  }, [activeRoute, selectedSubRouteCodes, activePlace, isTripOpen, tripShare, spot]);
 
   const handleZoomIn = () => {
     mapControlsRef.current?.zoomIn();
@@ -185,10 +225,11 @@ export default function App() {
     mapControlsRef.current?.highlightRoute('Spot', ids, { fly: false });
   };
 
-  // Show the lines at a spot, starting with one of them selected (or all)
+  // Show the lines at a spot, with some of them selected (none = all)
   // stop / stopLines: the stop at the spot (if any) and every bus serving it, for Start / Go and "all buses here"
-  const openSpot = (title, lines, firstId = null, stop = null, stopLines = null) => {
-    const next = { title, lines, selectedIds: firstId ? [firstId] : [], stop, stopLines };
+  // at: canvas position of the spot, for the share link
+  const openSpot = ({ title, lines, selectedIds = [], stop = null, stopLines = null, at = null }) => {
+    const next = { title, lines, selectedIds, stop, stopLines, at };
     setSelectedStop(null);
     setActiveRoute(null);
     setSelectedSubRouteCodes([]);
@@ -248,14 +289,21 @@ export default function App() {
     // With the planner open only stops matter: a small card offers Set as start / destination
     if (isTripOpen) {
       if (!found.stop) return closeTapInfo();
-      setTapInfo({ ...found, screen: tap.screen });
+      setTapInfo({ ...found, screen: tap.screen, at: { x: tap.x, y: tap.y } });
       return;
     }
     if (!found.stop && found.lines.length === 0) return; // empty map: keep what is showing
     // Otherwise the spot card shows everything at the tapped point (one card, updated on every tap)
     const lines = found.lines.length > 0 ? found.lines.map((h) => h.line) : found.stopLines;
     setTapInfo(null);
-    openSpot(found.stop?.name ?? 'Lines here', lines, null, found.stop, found.stopLines);
+    openSpot({
+      title: found.stop?.name ?? 'Lines here',
+      lines,
+      stop: found.stop,
+      stopLines: found.stopLines,
+      // At a stop, share the stop's own position so the link finds the same stop again
+      at: found.stop ? { x: found.stop.x, y: found.stop.y } : { x: tap.x, y: tap.y },
+    });
   };
 
   const handleShowStopLines = () => {
@@ -268,8 +316,9 @@ export default function App() {
   const handleChooseLine = (line) => {
     const title = tapInfo?.stop?.name ?? 'Lines here';
     const lines = tapInfo?.lines.map((h) => h.line) ?? [line];
+    const at = tapInfo?.stop ? { x: tapInfo.stop.x, y: tapInfo.stop.y } : tapInfo?.at ?? null;
     setTapInfo(null);
-    openSpot(title, lines, line.svgId);
+    openSpot({ title, lines, selectedIds: [line.svgId], at });
   };
 
   const handleTapStart = (stop) => {
@@ -450,7 +499,15 @@ export default function App() {
             mapControlsRef.current?.clearPlacePin();
           }}
           onShowLine={(line) =>
-            selectedStop && openSpot(selectedStop.station.name, selectedStop.lines, line.svgId, selectedStop.station, selectedStop.lines)
+            selectedStop &&
+            openSpot({
+              title: selectedStop.station.name,
+              lines: selectedStop.lines,
+              selectedIds: [line.svgId],
+              stop: selectedStop.station,
+              stopLines: selectedStop.lines,
+              at: { x: selectedStop.station.x, y: selectedStop.station.y },
+            })
           }
           onDirectionsFrom={(station) => openTrip({ origin: station })}
           onDirectionsTo={(station) => openTrip({ destination: station })}

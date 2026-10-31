@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { X, MapPin, ArrowUpRight, Navigation, Flag } from 'lucide-react';
-import DockablePanel, { CollapseButton } from './DockablePanel';
+import DockablePanel, { CollapseButton, ShareButton } from './DockablePanel';
 
 // Card for "the buses at this spot": every line found at a tapped point (or stop), across operators.
 // Chips switch between lines (tapping several compares them, "All" shows every line). A detail row says where
@@ -74,6 +74,7 @@ export default function SpotBanner({
             {lines.length} bus line{lines.length === 1 ? '' : 's'}
           </span>
         </h2>
+        <ShareButton label="Share these lines" title={single ? `${single.label} at ${title}` : `Buses at ${title}`} />
         <CollapseButton onClick={onCollapse} />
         <button
           onClick={onClose}

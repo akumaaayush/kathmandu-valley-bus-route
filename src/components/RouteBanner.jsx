@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
-import DockablePanel, { CollapseButton } from './DockablePanel';
+import DockablePanel, { CollapseButton, ShareButton } from './DockablePanel';
 
 // One operator's routes: branch chips (tap one to isolate it, tap more to compare, "All" for every branch) and a
 // detail row with where the focused branch goes. Same left-docked panel as the spot card.
@@ -44,6 +44,7 @@ export default function RouteBanner({ route, subRoutes, selectedCodes, collapsed
           {route.name}
           <span className="ml-2 font-normal text-neutral-400">{subRoutes.length > 0 && summary}</span>
         </h2>
+        <ShareButton label="Share these routes" title={single ? `${single.code}: ${branchName(single)}` : `${route.name} routes`} />
         <CollapseButton onClick={onCollapse} />
         <button
           onClick={onClear}

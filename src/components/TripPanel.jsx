@@ -30,6 +30,31 @@ function useGeolocation(enabled) {
   return state;
 }
 
+// The on-screen keyboard shrinks the visual viewport but not the layout one, so a bottom sheet ends up under it.
+// Returns the visible area ({ top, height }) while a keyboard is open, else null.
+const KEYBOARD_MIN_PX = 120;
+function useKeyboardViewport() {
+  const [viewport, setViewport] = useState(null);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () =>
+      setViewport((prev) => {
+        if (window.innerHeight - vv.height < KEYBOARD_MIN_PX) return null;
+        const next = { top: Math.round(vv.offsetTop), height: Math.round(vv.height) };
+        return prev && prev.top === next.top && prev.height === next.height ? prev : next;
+      });
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }, []);
+  return viewport;
+}
+
 // action: optional button shown inside the input (e.g. "use my location")
 function StopSearch({ planner, placeholder, onSelect, autoFocus, action }) {
   const [query, setQuery] = useState('');
@@ -50,10 +75,11 @@ function StopSearch({ planner, placeholder, onSelect, autoFocus, action }) {
         {action}
       </div>
       {results.length > 0 && (
-        <ul className="surface absolute left-0 right-0 mt-1 z-10 max-h-60 overflow-y-auto rounded-xl divide-y divide-neutral-100 dark:divide-white/10">
+        <ul className="surface sm:absolute left-0 right-0 mt-1 z-10 max-h-60 overflow-y-auto overscroll-contain rounded-xl divide-y divide-neutral-100 dark:divide-white/10">
           {results.map((st) => (
             <li key={st.index}>
               <button
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
                   setQuery('');
                   onSelect(st);
@@ -185,6 +211,20 @@ export default function TripPanel({
   const [collapsed, setCollapsed] = useState(false);
   // Focus the first empty field on desktop only: on phones it would pop the keyboard over the map
   const [isWideScreen] = useState(() => window.matchMedia?.('(min-width: 640px)').matches);
+  // Phones: while typing a stop, the sheet fills the space above the keyboard so the results stay visible
+  const keyboard = useKeyboardViewport();
+  const [isTyping, setIsTyping] = useState(false);
+  const scrollRef = useRef(null);
+  const keyboardSheet = !isWideScreen && isTyping && keyboard;
+
+  // Bring the field being typed in to the top of the sheet, leaving the rest of the space for its results
+  const isKeyboardSheet = Boolean(keyboardSheet);
+  useEffect(() => {
+    const box = scrollRef.current;
+    const input = document.activeElement;
+    if (!isKeyboardSheet || !box || !box.contains(input)) return;
+    box.scrollTop += input.getBoundingClientRect().top - box.getBoundingClientRect().top - 32;
+  }, [isKeyboardSheet]);
   const geo = useGeolocation(useGps);
   const lastPlannedPosition = useRef(null);
   const [plannedPosition, setPlannedPosition] = useState(null);
@@ -292,6 +332,13 @@ export default function TripPanel({
   return (
     <section
       aria-label="Find your bus"
+      onFocus={(e) => {
+        if (e.target.tagName !== 'INPUT') return;
+        setIsTyping(true);
+        setCollapsed(false);
+      }}
+      onBlur={(e) => e.target.tagName === 'INPUT' && setIsTyping(false)}
+      style={keyboardSheet ? { top: keyboard.top + 8, bottom: 'auto', height: keyboard.height - 8, maxHeight: 'none' } : undefined}
       className="surface fixed z-[1100] inset-x-0 bottom-0 max-h-[58vh] rounded-t-2xl sm:inset-x-auto sm:bottom-auto sm:top-4 sm:left-4 sm:w-[380px] sm:max-h-[calc(100vh-5rem)] sm:rounded-2xl flex flex-col text-neutral-800 dark:text-neutral-100 animate-in fade-in slide-in-from-bottom-4 sm:slide-in-from-left-2 duration-200"
     >
       <header className="flex items-center justify-between px-4 pt-3 pb-2 shrink-0">
@@ -334,7 +381,7 @@ export default function TripPanel({
         </button>
       )}
 
-      <div className={`px-4 pb-4 overflow-y-auto space-y-3 ${collapsed ? 'hidden sm:block' : ''}`}>
+      <div ref={scrollRef} className={`min-h-0 px-4 pb-4 overflow-y-auto overscroll-contain space-y-3 ${collapsed ? 'hidden sm:block' : ''}`}>
         {/* From */}
         <div>
           <div className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 mb-1">From</div>

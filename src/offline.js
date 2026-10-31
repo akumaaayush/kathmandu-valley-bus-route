@@ -34,6 +34,7 @@ export function registerServiceWorker() {
   window.addEventListener('load', async () => {
     try {
       const registration = await navigator.serviceWorker.register('./sw.js');
+      if (!registration) return;
       watchForUpdate(registration);
       let lastCheck = Date.now();
       document.addEventListener('visibilitychange', () => {
@@ -59,12 +60,15 @@ export function useAppUpdate() {
   const applyUpdate = useCallback(() => {
     if (!worker) return;
     let reloading = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
+    const reload = () => {
       if (reloading) return;
       reloading = true;
       window.location.reload();
-    });
+    };
+    navigator.serviceWorker.addEventListener('controllerchange', reload);
     worker.postMessage('SKIP_WAITING');
+    // If the waiting worker was replaced or failed, controllerchange never fires: reload anyway
+    setTimeout(reload, 3000);
   }, [worker]);
 
   return { updateReady: worker !== null, applyUpdate };

@@ -1,5 +1,6 @@
-import React from 'react';
-import { ChevronsLeft, ChevronsRight } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { ChevronsLeft, ChevronsRight, Share2, Check } from 'lucide-react';
+import { shareLink } from '../shareLink';
 
 // Left-docked panel for route views (the spot card, the operator banner). It sits under the search bar, full
 // width on phones and a 24rem column on wider screens, so the middle of the map stays clear. « slides it off
@@ -17,6 +18,28 @@ export function CollapseButton({ onClick }) {
       className="p-1.5 rounded-full text-neutral-400 hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer shrink-0"
     >
       <ChevronsLeft className="w-4 h-4" />
+    </button>
+  );
+}
+
+// The URL always mirrors what the panel shows (see shareLink.js), so this shares it as-is
+export function ShareButton({ label, title }) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
+  return (
+    <button
+      onClick={async () => {
+        if ((await shareLink(window.location.href, `${title} · Kathmandu bus map`)) === 'copied') setCopied(true);
+      }}
+      aria-label={copied ? 'Link copied' : label}
+      title={copied ? 'Link copied' : label}
+      className="p-1.5 rounded-full text-neutral-400 hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer shrink-0"
+    >
+      {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Share2 className="w-4 h-4" />}
     </button>
   );
 }

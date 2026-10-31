@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Minus, Maximize, Minimize, BookOpen, Sun, Moon, Share2, Check, Navigation } from 'lucide-react';
 import OfflineButton from './OfflineButton';
+import { shareLink } from '../shareLink';
 
 export default function Controls({
   onZoomIn,
@@ -33,18 +34,7 @@ export default function Controls({
 
   // The URL always reflects the selected route & place (see shareLink.js), so share it as-is
   const shareCurrentView = async () => {
-    const url = window.location.href;
-    const isTouchDevice = window.matchMedia?.('(pointer: coarse)').matches;
-    if (navigator.share && isTouchDevice) {
-      navigator.share({ title: document.title, url }).catch(() => {});
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(url);
-      setIsLinkCopied(true);
-    } catch {
-      window.prompt('Copy this link:', url);
-    }
+    if ((await shareLink()) === 'copied') setIsLinkCopied(true);
   };
 
   const toggleFullscreen = () => {
