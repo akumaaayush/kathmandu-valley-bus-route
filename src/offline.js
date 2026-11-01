@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 
 // Service worker + "Save map offline" support.
 // The service worker (built from src/service-worker.js) caches the app shell and every tile the user views.
@@ -134,40 +134,49 @@ const isStandalone = () =>
 
 const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
 
+// The browser's install prompt fires once, possibly before React mounts, and can be used once: keep it here,
+// shared by every component that offers "Install"
+let installPrompt = null;
+let isInstalled = isStandalone();
+const installListeners = new Set();
+const notifyInstall = () => installListeners.forEach((listener) => listener());
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  installPrompt = e;
+  notifyInstall();
+});
+window.addEventListener('appinstalled', () => {
+  isInstalled = true;
+  installPrompt = null;
+  notifyInstall();
+});
+
 /**
  * PWA install state. canInstall: browser offered an install prompt (Chrome/Edge/Android).
  * showIOSHint: iOS Safari has no prompt, so the UI explains "Add to Home Screen" instead.
+ * install() resolves to 'accepted' | 'dismissed' | 'unavailable'.
  */
 export function useInstallPrompt() {
-  const [promptEvent, setPromptEvent] = useState(null);
-  const [isInstalled, setIsInstalled] = useState(isStandalone);
+  const [, rerender] = useReducer((n) => n + 1, 0);
 
   useEffect(() => {
-    const handlePrompt = (e) => {
-      e.preventDefault();
-      setPromptEvent(e);
-    };
-    const handleInstalled = () => {
-      setIsInstalled(true);
-      setPromptEvent(null);
-    };
-    window.addEventListener('beforeinstallprompt', handlePrompt);
-    window.addEventListener('appinstalled', handleInstalled);
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handlePrompt);
-      window.removeEventListener('appinstalled', handleInstalled);
-    };
+    installListeners.add(rerender);
+    return () => installListeners.delete(rerender);
   }, []);
 
   const install = useCallback(async () => {
-    if (!promptEvent) return;
-    promptEvent.prompt();
-    await promptEvent.userChoice.catch(() => {});
-    setPromptEvent(null);
-  }, [promptEvent]);
+    const prompt = installPrompt;
+    if (!prompt) return 'unavailable';
+    installPrompt = null;
+    notifyInstall();
+    prompt.prompt();
+    const choice = await prompt.userChoice.catch(() => null);
+    return choice?.outcome ?? 'dismissed';
+  }, []);
 
   return {
-    canInstall: !isInstalled && promptEvent !== null,
+    canInstall: !isInstalled && installPrompt !== null,
     showIOSHint: !isInstalled && isIOS(),
     install,
   };

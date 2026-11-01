@@ -1,9 +1,11 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
+import { BUS_SERVICES } from './src/data/legendData.js'
+import { LINES, STATIONS } from './src/data/tripNetwork.js'
 
 const PUBLIC_DIR = path.resolve('public')
 const TILES_DIR = path.join(PUBLIC_DIR, 'tiles')
@@ -19,6 +21,9 @@ const PUBLIC_SHELL_FILES = [
   'icons/icon-512.png',
   'icons/apple-touch-icon.png',
 ]
+
+// Emitted by seoPlugin for search engines only
+const CRAWLER_FILES = ['robots.txt', 'sitemap.xml']
 
 const shortHash = (input) => createHash('sha256').update(input).digest('hex').slice(0, 12)
 
@@ -77,7 +82,8 @@ function offlinePlugin() {
       const tilesManifestJson = JSON.stringify(tilesManifest)
       this.emitFile({ type: 'asset', fileName: 'tiles-manifest.json', source: tilesManifestJson })
 
-      const bundleFiles = Object.keys(bundle).filter((f) => !f.endsWith('.map'))
+      // Crawler files are not needed offline (and sitemap.xml's date would make every build a new app version)
+      const bundleFiles = Object.keys(bundle).filter((f) => !f.endsWith('.map') && !CRAWLER_FILES.includes(f))
       // Deduped: cache.addAll() rejects duplicate requests (bundleFiles already includes tiles-manifest.json)
       const shellFiles = [...new Set(['./', ...bundleFiles, ...PUBLIC_SHELL_FILES])]
       const shellVersion = shortHash(
@@ -104,15 +110,66 @@ function offlinePlugin() {
   }
 }
 
+const escapeHtml = (text) => String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+// Plain HTML about the network, in a <noscript> block. Crawlers that don't run JavaScript (most AI search bots)
+// otherwise see only the title. Built from the same data as the app, so the numbers stay current.
+function crawlableSummary() {
+  const operators = BUS_SERVICES.map((s) => `<li><b>${escapeHtml(s.name)}</b>: ${escapeHtml(s.corridor)}</li>`).join('\n          ')
+  return `<noscript>
+      <main class="seo-summary">
+        <h1>Kathmandu Valley Bus Route Map</h1>
+        <p>An interactive map of bus routes in Kathmandu Valley, Nepal: ${LINES.length} routes run by ${BUS_SERVICES.length} operators,
+          ${STATIONS.length} stops, and a trip planner that tells you which bus to take and where to change.
+          काठमाडौं उपत्यकाको बस रुट नक्सा र यात्रा योजनाकार।</p>
+        <p>The map needs JavaScript. Operators on the map:</p>
+        <ul>
+          ${operators}
+        </ul>
+        <p>Map artwork by Subham Subedi. Stop locations © OpenStreetMap contributors.</p>
+      </main>
+    </noscript>`
+}
+
+// robots.txt, sitemap.xml and the crawlable summary. siteUrl: public origin, no trailing slash (VITE_SITE_URL).
+function seoPlugin(siteUrl) {
+  return {
+    name: 'ktm-seo',
+    transformIndexHtml(html) {
+      return html.replace('<!-- seo:summary -->', crawlableSummary())
+    },
+    generateBundle() {
+      if (!siteUrl) this.error('VITE_SITE_URL is not set (see .env)')
+      this.emitFile({
+        type: 'asset',
+        fileName: 'robots.txt',
+        source: `User-agent: *\nAllow: /\n\nSitemap: ${siteUrl}/sitemap.xml\n`,
+      })
+      // Shared links (?op=…, ?from=…) are views of the home page, which is canonical for them
+      const lastmod = new Date().toISOString().slice(0, 10)
+      this.emitFile({
+        type: 'asset',
+        fileName: 'sitemap.xml',
+        source: `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>${siteUrl}/</loc><lastmod>${lastmod}</lastmod></url>
+</urlset>
+`,
+      })
+    },
+  }
+}
+
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     tailwindcss(),
     offlinePlugin(),
+    seoPlugin(loadEnv(mode, process.cwd()).VITE_SITE_URL),
   ],
   base: './', // Ensures relative assets for GitHub Pages and Cloudflare Pages
   build: {
     copyPublicDir: true, // Copy public/tiles/ into dist/ during build (required for Cloudflare deployment)
   },
-})
+}))

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { CloudDownload, Check, WifiOff, X, MonitorSmartphone, RefreshCw } from 'lucide-react';
 import { useOfflineMap, useInstallPrompt, useAppUpdate } from '../offline';
+import InstallCard from './InstallCard';
 
 const BUTTON_CLASS = 'map-tool';
 
@@ -27,7 +28,8 @@ function ProgressRing({ progress }) {
   );
 }
 
-export default function OfflineButton() {
+// hideInstallCard: something else owns the bottom of the screen (the trip planner sheet on phones)
+export default function OfflineButton({ hideInstallCard = false }) {
   const { status, progress, error, totalBytes, isOnline, download } = useOfflineMap();
   const { canInstall, showIOSHint, install } = useInstallPrompt();
   const { updateReady, applyUpdate } = useAppUpdate();
@@ -43,9 +45,10 @@ export default function OfflineButton() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isPanelOpen]);
 
-  // Bottom-left status stack: "update ready" and the offline indicator
-  const statusStack = (updateReady || !isOnline) && (
+  // Bottom-left stack: install card, "update ready" and the offline indicator
+  const statusStack = (
     <div className="fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] md:bottom-8 left-3 sm:left-4 z-[1000] flex flex-col items-start gap-2 pointer-events-none">
+      <InstallCard hidden={hideInstallCard} />
       {updateReady && (
         <button
           onClick={applyUpdate}
@@ -65,7 +68,7 @@ export default function OfflineButton() {
     </div>
   );
 
-  if (status === 'unsupported' || status === 'checking') return statusStack || null;
+  if (status === 'unsupported' || status === 'checking') return statusStack;
 
   const percent = Math.floor(progress * 100);
   const remainingBytes = totalBytes * (1 - progress);

@@ -72,14 +72,20 @@ export default function App() {
     } catch (e) {}
   }, [theme]);
 
-  // Fade out the boot screen from index.html once the app has painted
+  // Fade out the boot screen from index.html once the app has painted, but not before one pass of its logo
+  // animation (a fast start would otherwise just flash it)
   useEffect(() => {
-    requestAnimationFrame(() => {
-      const boot = document.getElementById('boot');
-      if (!boot) return;
-      boot.classList.add('boot-done');
-      setTimeout(() => boot.remove(), 400);
-    });
+    const BOOT_MIN_MS = 900;
+    const wait = Math.max(0, (window.__bootStart ?? 0) + BOOT_MIN_MS - performance.now());
+    const timer = setTimeout(() => {
+      requestAnimationFrame(() => {
+        const boot = document.getElementById('boot');
+        if (!boot) return;
+        boot.classList.add('boot-done');
+        setTimeout(() => boot.remove(), 400);
+      });
+    }, wait);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleToggleTheme = () => {

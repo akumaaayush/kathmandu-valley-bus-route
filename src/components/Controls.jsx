@@ -114,7 +114,7 @@ export default function Controls({
             <Share2 className="w-4 h-4 stroke-[2] pointer-events-none" />
           )}
         </button>
-        <OfflineButton />
+        <OfflineButton hideInstallCard={isTripOpen} />
         <button
           onClick={onToggleTheme}
           title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}

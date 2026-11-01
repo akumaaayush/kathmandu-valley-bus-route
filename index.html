@@ -3,8 +3,55 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Kathmandu Bus Route Map — Interactive Transit Explorer</title>
-    <meta name="description" content="Pannable and zoomable vector transit map of Kathmandu Valley bus routes and operators." />
+    <title>Kathmandu Valley Bus Route Map &amp; Trip Planner | KTM Bus Map</title>
+    <meta name="description" content="Find which bus to take in Kathmandu Valley. Interactive map of every route by Sajha Yatayat, Nepal Yatayat, Mahanagar and more, with stops and a trip planner. Works offline." />
+    <link rel="canonical" href="%VITE_SITE_URL%/" />
+    <!-- Link previews (Facebook, Viber, WhatsApp, X) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="KTM Bus Map" />
+    <meta property="og:title" content="Kathmandu Valley Bus Route Map &amp; Trip Planner" />
+    <meta property="og:description" content="Find which bus to take in Kathmandu Valley. Interactive map of every route by Sajha Yatayat, Nepal Yatayat, Mahanagar and more, with stops and a trip planner. Works offline." />
+    <meta property="og:url" content="%VITE_SITE_URL%/" />
+    <meta property="og:image" content="%VITE_SITE_URL%/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Kathmandu Valley bus route map with coloured route lines" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <!-- Search engines: site name and what the app is -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "%VITE_SITE_URL%/#website",
+            "url": "%VITE_SITE_URL%/",
+            "name": "KTM Bus Map",
+            "alternateName": ["Kathmandu Bus Route Map", "Kathmandu Valley Bus Routes", "KTM Route"],
+            "inLanguage": "en"
+          },
+          {
+            "@type": "WebApplication",
+            "@id": "%VITE_SITE_URL%/#app",
+            "name": "KTM Bus Map",
+            "url": "%VITE_SITE_URL%/",
+            "description": "Find which bus to take in Kathmandu Valley. Interactive map of every route by Sajha Yatayat, Nepal Yatayat, Mahanagar and more, with stops and a trip planner. Works offline.",
+            "applicationCategory": "TravelApplication",
+            "operatingSystem": "Any",
+            "browserRequirements": "Requires JavaScript",
+            "isAccessibleForFree": true,
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "NPR" },
+            "areaServed": { "@type": "Place", "name": "Kathmandu Valley, Nepal" },
+            "author": { "@type": "Person", "name": "Aayush Shah", "url": "https://shahaayush.com.np/" },
+            "isBasedOn": {
+              "@type": "Map",
+              "name": "Kathmandu Bus Route Map",
+              "author": { "@type": "Person", "name": "Subham Subedi", "url": "https://www.linkedin.com/in/subham-subedi/" }
+            }
+          }
+        ]
+      }
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- Not render-blocking: a slow or unreachable font host must never hold the app on a blank screen -->
@@ -18,12 +65,15 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="KTM Bus Map" />
     <script>
+      // Boot screen start, so App.jsx can keep it up long enough to see the logo animate
+      window.__bootStart = performance.now();
       // Theme before first paint, so the boot screen and app open in the saved theme
       try {
         var theme = localStorage.getItem('ktm_transit_theme');
         if (theme === 'dark' || (!theme && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark');
       } catch (e) {}
     </script>
+    <noscript><style>#boot, #root { display: none !important; } body { overflow: auto !important; } .seo-summary { max-width: 42rem; margin: 2rem auto; padding: 0 1rem; font: 15px/1.6 system-ui, sans-serif; overflow: auto; }</style></noscript>
     <style>
       /* Boot screen: static HTML shown until the app paints (main.jsx fades it out). Plain CSS: Tailwind may not be loaded yet. */
       #boot {
@@ -48,18 +98,21 @@
       }
       #boot::after { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 50% 42%, var(--glow), transparent 35%); pointer-events: none; }
       #boot.boot-done { opacity: 0; visibility: hidden; pointer-events: none; }
-      /* Content appears after a beat, so fast starts don't flash it */
-      #boot .boot-card { position: relative; margin-top: -24px; z-index: 1; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 24px; animation: boot-in 0.4s ease 0.15s both; }
+      /* The logo sits dead centre, full colour from the first frame, so it continues the phone's splash icon
+         (installed app) without a jump. The text hangs below it and fades in. */
+      #boot .boot-card { position: relative; z-index: 1; }
+      #boot .boot-logo { display: block; width: 120px; height: 120px; border-radius: 27px; box-shadow: var(--tile-shadow), 0 0 0 1px var(--tile-ring); }
+      #boot .boot-text { position: absolute; top: calc(100% + 26px); left: 50%; width: max-content; max-width: 90vw; transform: translateX(-50%); text-align: center; }
+      #boot h1, #boot p { animation: boot-in 0.4s ease 0.1s both; }
       @keyframes boot-in { from { opacity: 0; transform: translateY(6px); } }
-      #boot .boot-logo { width: 84px; height: 84px; border-radius: 19px; box-shadow: var(--tile-shadow), 0 0 0 1px var(--tile-ring); }
-      /* Faint tracks stay; the bright route lines draw in and run off, one after another */
-      #boot .route { stroke-dasharray: 1 1; stroke-dashoffset: 1; animation: boot-route 2.4s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
-      #boot .route-2 { animation-delay: 0.2s; }
-      #boot .route-3 { animation-delay: 0.4s; }
-      @keyframes boot-route { 0% { stroke-dashoffset: 1; } 40%, 60% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -1; } }
-      #boot h1 { margin: 22px 0 0; font-size: 17px; font-weight: 600; letter-spacing: -0.02em; }
+      /* A light pulse runs along each route, under the stops, like buses passing through */
+      #boot .bus { stroke-dasharray: 0.14 1.3; stroke-dashoffset: 0.2; animation: boot-bus 1.5s cubic-bezier(0.45, 0, 0.55, 1) infinite both; }
+      #boot .bus-2 { animation-delay: 0.3s; }
+      #boot .bus-3 { animation-delay: 0.6s; }
+      @keyframes boot-bus { from { stroke-dashoffset: 0.2; } to { stroke-dashoffset: -1.1; } }
+      #boot h1 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.02em; }
       #boot p { margin: 6px 0 0; font-size: 13px; font-weight: 450; color: var(--muted); }
-      #boot .boot-slow { position: absolute; top: 100%; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; margin-top: -6px; animation: boot-in 0.3s ease both; }
+      #boot .boot-slow { display: flex; flex-direction: column; align-items: center; margin-top: 18px; animation: boot-in 0.3s ease both; }
       #boot .boot-slow[hidden] { display: none; }
       #boot button {
         display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 18px; border: 0; border-radius: 999px;
@@ -72,7 +125,7 @@
       #boot button svg { width: 15px; height: 15px; }
       @keyframes boot-spin { to { transform: rotate(360deg); } }
       @media (prefers-reduced-motion: reduce) {
-        #boot .route { animation: none; stroke-dashoffset: 0; }
+        #boot .bus { display: none; }
         #boot .boot-logo { animation: boot-pulse 1.6s ease-in-out infinite alternate; }
         @keyframes boot-pulse { to { opacity: 0.6; } }
       }
@@ -84,21 +137,22 @@
       <div class="boot-card">
         <svg class="boot-logo" viewBox="0 0 512 512" aria-hidden="true">
           <rect width="512" height="512" rx="112" fill="#0a0a0a" />
-          <g fill="none" stroke-width="30" stroke-linecap="round" opacity="0.28">
+          <g fill="none" stroke-width="30" stroke-linecap="round">
             <line x1="112" y1="256" x2="400" y2="256" stroke="#1ba546" />
             <line x1="256" y1="112" x2="256" y2="400" stroke="#c99629" />
             <line x1="142" y1="370" x2="370" y2="142" stroke="#e11d48" />
           </g>
-          <g fill="none" stroke-width="30" stroke-linecap="round">
-            <line class="route route-1" x1="112" y1="256" x2="400" y2="256" stroke="#1ba546" pathLength="1" />
-            <line class="route route-2" x1="256" y1="112" x2="256" y2="400" stroke="#c99629" pathLength="1" />
-            <line class="route route-3" x1="142" y1="370" x2="370" y2="142" stroke="#e11d48" pathLength="1" />
+          <g fill="none" stroke="#fff" stroke-width="18" stroke-linecap="round" opacity="0.85">
+            <line class="bus bus-1" x1="112" y1="256" x2="400" y2="256" pathLength="1" />
+            <line class="bus bus-2" x1="256" y1="112" x2="256" y2="400" pathLength="1" />
+            <line class="bus bus-3" x1="370" y1="142" x2="142" y2="370" pathLength="1" />
           </g>
           <g fill="#fff" stroke="#0a0a0a" stroke-width="12">
             <circle cx="256" cy="256" r="20" /><circle cx="256" cy="112" r="20" /><circle cx="256" cy="400" r="20" />
             <circle cx="112" cy="256" r="20" /><circle cx="400" cy="256" r="20" /><circle cx="142" cy="370" r="20" /><circle cx="370" cy="142" r="20" />
           </g>
         </svg>
+        <div class="boot-text">
         <h1>Kathmandu Bus Map</h1>
         <p id="boot-text">Loading map…</p>
         <div id="boot-slow" class="boot-slow" hidden>
@@ -107,9 +161,11 @@
             Reload
           </button>
         </div>
+        </div>
       </div>
     </div>
     <div id="root" class="h-full w-full relative flex flex-col bg-white"></div>
+    <!-- seo:summary -->
     <script>
       // Escape hatch if the app never starts: drop the app-shell caches and service worker (saved map tiles stay) and reload
       setTimeout(function () {

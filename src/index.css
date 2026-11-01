@@ -538,3 +538,11 @@ button, [role="button"], .cursor-pointer, .leaflet-control button {
 .gmap-trip-alight .gmap-stop-dot { background-color: #e11d48; }
 .gmap-trip-change .gmap-pin-badge { background: #78350f; }
 .gmap-trip-alight .gmap-pin-badge { background: #881337; }
+
+/* Install card entrance (InstallCard.jsx) */
+@keyframes install-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
