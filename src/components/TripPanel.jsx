@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, LocateFixed, MapPin, Search, Footprints, Bus, ArrowRight, ArrowUpDown, RefreshCw, LoaderCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, LocateFixed, MapPin, Search, Footprints, Bus, ArrowRight, ArrowUpDown, RefreshCw, LoaderCircle, ChevronDown, ChevronUp, History } from 'lucide-react';
 import { usePlanner } from '../usePlanner';
+import { addRecentStop, addRecentTrip, clearHistory, useHistory } from '../history';
 
 // Trip planner: a chosen stop (or, on request, GPS -> nearest stops) -> buses to the destination, with changes if
 // needed. Location is only requested when the user taps the location button.
@@ -56,9 +57,18 @@ function useKeyboardViewport() {
 }
 
 // action: optional button shown inside the input (e.g. "use my location")
-function StopSearch({ planner, placeholder, onSelect, autoFocus, action }) {
+// recent: recent stops, listed while the field is focused and empty (not on autofocus: only once the user picks it)
+function StopSearch({ planner, placeholder, onSelect, autoFocus, action, recent = [] }) {
   const [query, setQuery] = useState('');
+  const [showRecent, setShowRecent] = useState(false);
+  const skipFocus = useRef(Boolean(autoFocus));
   const results = planner && query.trim() ? planner.searchStations(query) : [];
+  const recentShown = showRecent && !query.trim() ? recent.slice(0, 5) : [];
+  const select = (st) => {
+    setQuery('');
+    setShowRecent(false);
+    onSelect(st);
+  };
   return (
     <div className="relative">
       <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-neutral-100 dark:bg-white/[0.06] focus-within:ring-2 focus-within:ring-neutral-900/10 dark:focus-within:ring-white/15">
@@ -68,6 +78,12 @@ function StopSearch({ planner, placeholder, onSelect, autoFocus, action }) {
           value={query}
           autoFocus={autoFocus}
           onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => {
+            if (!skipFocus.current) setShowRecent(true);
+            skipFocus.current = false;
+          }}
+          onPointerDown={() => setShowRecent(true)}
+          onBlur={() => setShowRecent(false)}
           placeholder={placeholder}
           aria-label={placeholder}
           className="w-full bg-transparent text-sm text-neutral-800 dark:text-neutral-100 placeholder-neutral-500 dark:placeholder-neutral-400 focus:outline-none"
@@ -80,10 +96,7 @@ function StopSearch({ planner, placeholder, onSelect, autoFocus, action }) {
             <li key={st.index}>
               <button
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  setQuery('');
-                  onSelect(st);
-                }}
+                onClick={() => select(st)}
                 className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 dark:hover:bg-white/[0.06] flex items-center gap-2 cursor-pointer"
               >
                 <MapPin className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
@@ -92,6 +105,34 @@ function StopSearch({ planner, placeholder, onSelect, autoFocus, action }) {
             </li>
           ))}
         </ul>
+      )}
+      {recentShown.length > 0 && (
+        <div className="surface sm:absolute left-0 right-0 mt-1 z-10 rounded-xl overflow-hidden">
+          <div className="flex items-center justify-between px-3 pt-2 pb-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">Recent stops</span>
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={clearHistory}
+              className="text-[11px] font-medium text-neutral-500 hover:text-neutral-900 dark:hover:text-white cursor-pointer"
+            >
+              Clear
+            </button>
+          </div>
+          <ul className="divide-y divide-neutral-100 dark:divide-white/10">
+            {recentShown.map((st) => (
+              <li key={st.index}>
+                <button
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => select(st)}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 dark:hover:bg-white/[0.06] flex items-center gap-2 cursor-pointer"
+                >
+                  <History className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+                  <span className="truncate">{st.name}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       {planner && query.trim() && results.length === 0 && (
         <p className="mt-1 px-1 text-xs text-neutral-500">No stop on the map matches "{query}".</p>
@@ -185,6 +226,15 @@ export default function TripPanel({
   const [originStop, setOriginStop] = useState(typeof initialOrigin === 'string' ? null : initialOrigin);
   const [destination, setDestination] = useState(typeof initialDestination === 'string' ? null : initialDestination);
   const pendingOption = useRef(initialOption);
+  const history = useHistory(planner);
+  const pickOrigin = (st) => {
+    addRecentStop(st.name);
+    setOriginStop(st);
+  };
+  const pickDestination = (st) => {
+    addRecentStop(st.name);
+    setDestination(st);
+  };
 
   // Stops tapped on the map fill From / To. Only picks made while this panel is open count.
   const seenPickKey = useRef(pick?.key);
@@ -261,6 +311,13 @@ export default function TripPanel({
     setOriginStop(destination);
     setDestination(swapFrom);
   };
+
+  // Remember trips that found buses (from GPS, just the destination: a position is not a reusable start)
+  useEffect(() => {
+    if (!trips?.length || !destination) return;
+    if (useGps) addRecentStop(destination.name);
+    else if (originStop) addRecentTrip(originStop.name, destination.name);
+  }, [trips]);
 
   const alreadyThere = destination && origins.some((o) => o.station.name === destination.name && o.walkM < 300);
 
@@ -446,7 +503,8 @@ export default function TripPanel({
                 <StopSearch
                   planner={planner}
                   placeholder="Starting stop"
-                  onSelect={setOriginStop}
+                  onSelect={pickOrigin}
+                  recent={history.stops}
                   autoFocus={isWideScreen && !initialOrigin && !initialDestination}
                   action={
                     <button
@@ -490,7 +548,13 @@ export default function TripPanel({
               </button>
             </div>
           ) : (
-            <StopSearch planner={planner} placeholder="Where do you want to go?" onSelect={setDestination} autoFocus={isWideScreen && !!initialOrigin} />
+            <StopSearch
+              planner={planner}
+              placeholder="Where do you want to go?"
+              onSelect={pickDestination}
+              autoFocus={isWideScreen && !!initialOrigin}
+              recent={history.stops.filter((st) => st.name !== originStop?.name)}
+            />
           )}
         </div>
 
@@ -544,6 +608,34 @@ export default function TripPanel({
               );
             })}
           </ul>
+        ) : !originStop && !destination && !useGps && history.trips.length > 0 ? (
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">Recent trips</div>
+              <button onClick={clearHistory} className="text-[11px] font-medium text-neutral-500 hover:text-neutral-900 dark:hover:text-white cursor-pointer">
+                Clear
+              </button>
+            </div>
+            <ul className="space-y-1" aria-label="Recent trips">
+              {history.trips.map(({ from, to }) => (
+                <li key={`${from.index}>${to.index}`}>
+                  <button
+                    onClick={() => {
+                      setUseGps(false);
+                      setOriginStop(from);
+                      setDestination(to);
+                    }}
+                    className="w-full flex items-center gap-2 p-2.5 rounded-xl border border-neutral-200 dark:border-white/10 hover:bg-neutral-50 dark:hover:bg-white/[0.06] text-sm text-left cursor-pointer"
+                  >
+                    <History className="w-4 h-4 text-neutral-500 shrink-0" />
+                    <span className="truncate font-medium">{from.name}</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+                    <span className="truncate font-medium">{to.name}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
         ) : null}
 
         <p className="text-[10px] leading-snug text-neutral-500">

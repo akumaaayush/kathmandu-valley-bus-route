@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Search, X, MapPin, LoaderCircle, Navigation, Flag } from 'lucide-react';
+import { Search, X, MapPin, LoaderCircle, Navigation, Flag, History } from 'lucide-react';
 import { usePlanner } from '../usePlanner';
+import { addRecentStop, clearHistory, useHistory } from '../history';
 
 // Stop search on the map. Picking a stop flies to it and opens a card with the buses that stop there and
 // shortcuts into the trip planner. The stop network loads when the search is first focused.
@@ -36,11 +37,15 @@ export default function MapSearchBar({ selected, onSelectStop, onClear, onDirect
   }, []);
 
   const trimmed = query.trim();
-  const results = planner && trimmed ? planner.searchStations(trimmed, 8) : [];
+  const history = useHistory(planner);
+  // Empty field: recent stops instead of search results
+  const showingRecent = !trimmed && history.stops.length > 0;
+  const results = planner && trimmed ? planner.searchStations(trimmed, 8) : showingRecent ? history.stops : [];
 
   useEffect(() => setHighlight(0), [trimmed]);
 
   const choose = (station) => {
+    addRecentStop(station.name);
     setQuery('');
     setIsOpen(false);
     inputRef.current?.blur();
@@ -72,13 +77,13 @@ export default function MapSearchBar({ selected, onSelectStop, onClear, onDirect
           type="search"
           value={query}
           role="combobox"
-          aria-expanded={isOpen && results.length > 0}
+          aria-expanded={isOpen && planner !== null && results.length > 0}
           aria-controls="map-stop-search-results"
           aria-label="Search bus stops"
           placeholder="Search bus stops…"
           onFocus={() => {
             setWantsPlanner(true);
-            if (trimmed) setIsOpen(true);
+            setIsOpen(true);
           }}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -102,11 +107,25 @@ export default function MapSearchBar({ selected, onSelectStop, onClear, onDirect
         )}
       </div>
 
-      {isOpen && planner && trimmed && (
+      {isOpen && planner && (trimmed || showingRecent) && (
+        <div className="surface mt-1.5 rounded-xl overflow-hidden">
+        {showingRecent && (
+          <div className="flex items-center justify-between px-3.5 pt-2.5 pb-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">Recent stops</span>
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={clearHistory}
+              className="text-[11px] font-medium text-neutral-500 hover:text-neutral-900 dark:hover:text-white cursor-pointer"
+            >
+              Clear
+            </button>
+          </div>
+        )}
         <ul
           id="map-stop-search-results"
           role="listbox"
-          className="surface mt-1.5 max-h-72 overflow-y-auto rounded-xl divide-y divide-neutral-100 dark:divide-white/10"
+          aria-label={showingRecent ? 'Recent stops' : 'Matching stops'}
+          className="max-h-72 overflow-y-auto divide-y divide-neutral-100 dark:divide-white/10"
         >
           {results.length > 0 ? (
             results.map((st, i) => {
@@ -118,7 +137,7 @@ export default function MapSearchBar({ selected, onSelectStop, onClear, onDirect
                     onMouseEnter={() => setHighlight(i)}
                     className={`w-full text-left px-3.5 py-2.5 flex items-center gap-2.5 cursor-pointer ${i === highlight ? 'bg-neutral-50 dark:bg-white/[0.06]' : ''}`}
                   >
-                    <MapPin className="w-4 h-4 text-neutral-500 shrink-0" />
+                    {showingRecent ? <History className="w-4 h-4 text-neutral-500 shrink-0" /> : <MapPin className="w-4 h-4 text-neutral-500 shrink-0" />}
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm font-medium text-neutral-800 dark:text-neutral-100 truncate">{st.name}</span>
                       <span className="block text-[11px] text-neutral-500 dark:text-neutral-400 truncate">
@@ -133,6 +152,7 @@ export default function MapSearchBar({ selected, onSelectStop, onClear, onDirect
             <li className="p-4 text-center text-xs text-neutral-500">No stop on the map matches "{trimmed}".</li>
           )}
         </ul>
+        </div>
       )}
 
       {selected && !isOpen && (
