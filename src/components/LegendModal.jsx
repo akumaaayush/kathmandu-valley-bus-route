@@ -349,7 +349,7 @@ export default function LegendModal({ isOpen, onClose, onNavigateToLocation }) {
                                 onClick={() => handleNavigateToMap(navTarget, service, matchedSubRoute || null)}
                                 className="inline-flex items-center min-h-6 px-1.5 rounded-md text-[11px] font-mono font-semibold text-white hover:ring-2 hover:ring-offset-1 hover:ring-neutral-900/30 dark:hover:ring-white/40 dark:ring-offset-neutral-950 transition-shadow cursor-pointer"
                                 style={{ backgroundColor: service.color }}
-                                title={matchedSubRoute ? `Show ${matchedSubRoute.name} on the map` : `Show ${rt} on the map`}
+                                data-tip={matchedSubRoute ? `Show ${matchedSubRoute.name} on the map` : `Show ${rt} on the map`}
                               >
                                 {rt}
                               </button>
@@ -406,7 +406,7 @@ export default function LegendModal({ isOpen, onClose, onNavigateToLocation }) {
                                             ? 'btn-primary font-medium'
                                             : 'bg-neutral-100 dark:bg-white/[0.06] text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-white/10 hover:text-neutral-950 dark:hover:text-white'
                                         }`}
-                                        title={`Show ${stop} on the map`}
+                                        data-tip={`Show ${stop} on the map`}
                                       >
                                         {stop}
                                       </button>

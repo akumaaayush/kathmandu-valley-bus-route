@@ -18,7 +18,7 @@ export default function AttributionBar() {
             target="_blank"
             rel="noopener noreferrer"
             className="text-white font-medium hover:underline hover:text-white transition-colors inline-flex items-center gap-0.5"
-            title="Subham Subedi on LinkedIn"
+            data-tip="Subham Subedi on LinkedIn"
           >
             Subham Subedi
             <ExternalLink className="w-2.5 h-2.5 opacity-70" />
@@ -30,7 +30,7 @@ export default function AttributionBar() {
           target="_blank"
           rel="noopener noreferrer"
           className="text-neutral-300 hover:text-white hover:underline transition-colors shrink-0"
-          title="View original map post on LinkedIn"
+          data-tip="View original map post on LinkedIn"
         >
           Original Post
         </a>
@@ -40,7 +40,7 @@ export default function AttributionBar() {
           target="_blank"
           rel="noopener noreferrer"
           className="text-neutral-300 hover:text-white hover:underline transition-colors shrink-0"
-          title="Stop locations for the trip planner come from OpenStreetMap"
+          data-tip="Stop locations for the trip planner come from OpenStreetMap"
         >
           Stops © OpenStreetMap
         </a>

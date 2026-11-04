@@ -105,7 +105,7 @@ function LineBadge({ line }) {
     <span
       className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-mono font-bold text-white shrink-0"
       style={{ backgroundColor: line.color }}
-      title={line.operator}
+      data-tip={line.operator}
     >
       {line.label}
     </span>
@@ -442,7 +442,7 @@ export default function TripPanel({
                   action={
                     <button
                       onClick={() => setUseGps(true)}
-                      title="Use my location"
+                      data-tip="Use my location"
                       aria-label="Use my location"
                       className="p-1 -mr-1 rounded-lg text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-white/10 cursor-pointer shrink-0"
                     >

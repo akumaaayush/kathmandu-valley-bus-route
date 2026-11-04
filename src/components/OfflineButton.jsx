@@ -86,7 +86,7 @@ export default function OfflineButton({ hideInstallCard = false }) {
       <div ref={containerRef} className="relative">
         <button
           onClick={() => setIsPanelOpen((open) => !open)}
-          title={title}
+          data-tip={title}
           aria-label={title}
           aria-expanded={isPanelOpen}
           style={{ cursor: 'pointer' }}

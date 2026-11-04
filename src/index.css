@@ -571,3 +571,16 @@ button, [role="button"], .cursor-pointer, .leaflet-control button {
     outline-offset: 3px;
   }
 }
+
+/* Tooltip (Tooltips.jsx): fades in, nudged out from its anchor */
+.tooltip { animation: tooltip-in 120ms ease-out; }
+.tooltip[data-side='top'] { --tip-from: translateY(3px); }
+.tooltip[data-side='bottom'] { --tip-from: translateY(-3px); }
+.tooltip[data-side='left'] { --tip-from: translateX(3px); }
+.tooltip[data-side='right'] { --tip-from: translateX(-3px); }
+@keyframes tooltip-in {
+  from { opacity: 0; transform: var(--tip-from, none); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tooltip { animation: none; }
+}

@@ -14,7 +14,7 @@ export function CollapseButton({ onClick }) {
     <button
       onClick={onClick}
       aria-label="Hide panel"
-      title="Hide panel"
+      data-tip="Hide panel"
       className="p-1.5 rounded-full text-neutral-400 hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer shrink-0"
     >
       <ChevronsLeft className="w-4 h-4" />
@@ -36,7 +36,7 @@ export function ShareButton({ label, title }) {
         if ((await shareLink(window.location.href, `${title} · Kathmandu bus map`)) === 'copied') setCopied(true);
       }}
       aria-label={copied ? 'Link copied' : label}
-      title={copied ? 'Link copied' : label}
+      data-tip={copied ? 'Link copied' : label}
       className="p-1.5 rounded-full text-neutral-400 hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer shrink-0"
     >
       {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Share2 className="w-4 h-4" />}

@@ -9,7 +9,7 @@ function LineBadge({ line, onClick }) {
   return (
     <button
       onClick={onClick}
-      title={`${line.operator}: show ${line.label} on the map`}
+      data-tip={`${line.operator}: show ${line.label} on the map`}
       className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-mono font-bold text-white cursor-pointer hover:brightness-110 hover:ring-2 hover:ring-offset-1 hover:ring-neutral-300 dark:hover:ring-offset-neutral-900"
       style={{ backgroundColor: line.color }}
     >

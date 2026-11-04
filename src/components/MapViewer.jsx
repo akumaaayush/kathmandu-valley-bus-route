@@ -480,7 +480,7 @@ export default function MapViewer({ registerMapControls, onPlaceCleared, onMapTa
       userMarker = L.marker(latLng, {
         icon: L.divIcon({
           className: 'leaflet-gmap-user-layer',
-          html: '<div class="gmap-user-dot" title="You are here (approximate on this schematic map)"><span></span></div>',
+          html: '<div class="gmap-user-dot" data-tip="You are here (approximate on this schematic map)"><span></span></div>',
           iconSize: [0, 0],
           iconAnchor: [0, 0],
         }),

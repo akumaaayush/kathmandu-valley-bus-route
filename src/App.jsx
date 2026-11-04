@@ -9,6 +9,7 @@ import SpotBanner from './components/SpotBanner';
 import RouteBanner from './components/RouteBanner';
 import LineChooser from './components/LineChooser';
 import HelpTour, { isTourSeen, pulseTarget } from './components/HelpTour';
+import Tooltips from './components/Tooltips';
 import { loadLineFinder, loadPlanner } from './usePlanner';
 import { getOperatorRoutes } from './data/dedicatedRoutesData';
 import { BUS_SERVICES } from './data/legendData';
@@ -555,6 +556,8 @@ export default function App() {
       />
 
       {isHelpOpen && <HelpTour onClose={() => setIsHelpOpen(false)} onShowMe={handleTourShowMe} />}
+
+      <Tooltips />
     </main>
   );
 }

@@ -80,7 +80,7 @@ export default function InstallCard({ hidden }) {
       <button
         onClick={dismiss}
         aria-label="Not now"
-        title="Not now"
+        data-tip="Not now"
         className="p-1.5 rounded-full text-neutral-400 hover:text-neutral-700 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-white/[0.08] cursor-pointer shrink-0"
       >
         <X className="w-4 h-4" />
