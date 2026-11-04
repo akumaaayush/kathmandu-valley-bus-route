@@ -2,6 +2,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, MonitorSmartphone, Share } from 'lucide-react';
 import { useInstallPrompt } from '../offline';
 import { snoozeInstallCard } from './InstallCard';
+import { BUS_SERVICES } from '../data/legendData';
 
 // "How to use" tour: a few cards, each with a small looping SVG scene of the real UI. Opens by itself on a first
 // plain visit (not from a shared link) and again from the ? button. Seen-state lives in localStorage; bump the
@@ -62,10 +63,15 @@ const dim = (at) => [[0, 1], [at, 1], [at + 0.05, 0.15], [1, 0.15]];
 // Stroke drawn along the path (pathLength 1, dash 1, gap 1.1: offset 1.05 hides it without a stray round cap)
 const draw = (at, len = 0.18) => [[0, 1.05], [at, 1.05], [at + len, 0], [1, 0]];
 
-const RED = '#e11d48';
-const BLUE = '#2563eb';
-const GREEN = '#16a34a';
-const AMBER = '#f59e0b';
+// Real operators, so the scenes match the map: M2 Mahanagar (red), X1 Mayur (blue), S2 Sajha (green)
+const opColor = (code) => BUS_SERVICES.find((s) => s.code === code)?.color ?? '#737373';
+const RED = opColor('M');
+const BLUE = opColor('X');
+const GREEN = opColor('S');
+// Trip planner pins (same as the map's board / change / get-off pins)
+const PIN_BOARD = '#16a34a';
+const PIN_CHANGE = '#f59e0b';
+const PIN_OFF = '#e11d48';
 
 // Three lines meeting at one stop (140, 70)
 const RED_D = 'M18 122 C 70 120, 90 70, 140 70 C 190 70, 230 22, 272 22';
@@ -156,10 +162,10 @@ function WelcomeArt() {
       <Tap x={80} y={95} at={0.44} />
       <g>
         <Loop attr="opacity" frames={appear(0.5)} />
-        <rect x="52" y="60" width="66" height="22" rx="6" className={PANEL} />
-        <Chip x={56} y={64} color={RED} label="S2" />
-        <text x="81" y="74.5" fontSize="8.5" fontWeight="500" className={MUTED}>
-          Sajha
+        <rect x="40" y="60" width="86" height="22" rx="6" className={PANEL} />
+        <Chip x={44} y={64} color={RED} label="M2" />
+        <text x="69" y="74.5" fontSize="8.5" fontWeight="500" className={MUTED}>
+          Mahanagar
         </text>
       </g>
     </Scene>
@@ -216,9 +222,9 @@ function SearchArt() {
         <text x="26" y="62.5" fontSize="9.5" fontWeight="600" className={STRONG}>
           Lagankhel
         </text>
-        <Chip x={196} y={52} color={RED} label="S2" />
-        <Chip x={218} y={52} color={BLUE} label="21" />
-        <Chip x={240} y={52} color={GREEN} label="M2" />
+        <Chip x={196} y={52} color={RED} label="M2" />
+        <Chip x={218} y={52} color={BLUE} label="X1" />
+        <Chip x={240} y={52} color={GREEN} label="S2" />
         <text x="26" y="86" fontSize="9.5" className={MUTED}>
           Lagankhel Buspark
         </text>
@@ -234,9 +240,9 @@ function SearchArt() {
         <text x="22" y="150" fontSize="8.5" className={MUTED}>
           3 buses stop here
         </text>
-        <Chip x={196} y={132} color={RED} label="S2" />
-        <Chip x={218} y={132} color={BLUE} label="21" />
-        <Chip x={240} y={132} color={GREEN} label="M2" />
+        <Chip x={196} y={132} color={RED} label="M2" />
+        <Chip x={218} y={132} color={BLUE} label="X1" />
+        <Chip x={240} y={132} color={GREEN} label="S2" />
       </g>
     </Scene>
   );
@@ -264,9 +270,9 @@ function StopArt() {
         <text x="258" y="119" textAnchor="end" fontSize="8" className={MUTED}>
           3 buses stop here
         </text>
-        <Chip x={22} y={128} color={RED} label="S2" />
-        <Chip x={46} y={128} color={BLUE} label="21" />
-        <Chip x={70} y={128} color={GREEN} label="M2" />
+        <Chip x={22} y={128} color={RED} label="M2" />
+        <Chip x={46} y={128} color={BLUE} label="X1" />
+        <Chip x={70} y={128} color={GREEN} label="S2" />
         <rect x="43.5" y="125.5" width="25" height="19" rx="5" fill="none" strokeWidth="1.5" className="stroke-neutral-900 dark:stroke-white">
           <Loop attr="opacity" frames={appear(0.58)} />
         </rect>
@@ -280,6 +286,92 @@ function StopArt() {
         </text>
       </g>
       <Tap x={56} y={135} at={0.55} />
+    </Scene>
+  );
+}
+
+// The bus services list: tap a route code, the list closes and that route lights up with its banner.
+// Static frame (reduced motion) is the list itself, the part worth seeing.
+function ServicesArt() {
+  const operators = [
+    { code: 'S', name: 'Sajha Yatayat', routes: ['S1', 'S2', 'S4', 'S5', 'S6'], y: 80 },
+    { code: 'M', name: 'Mahanagar Yatayat', routes: ['M1', 'M2', 'M3'], y: 120 },
+  ];
+  return (
+    <Scene>
+      <g opacity="0.25">
+        <Line d={BLUE_D} color={BLUE} />
+        <Line d={RED_D} color={RED} />
+      </g>
+      <g opacity="0">
+        <Loop attr="opacity" frames={appear(0.56)} />
+        <Line d={GREEN_D} color={GREEN} width={4.5} drawAt={0.58} />
+        <Stop x={140} y={70} />
+        <rect x="12" y="10" width="256" height="24" rx="7" className="fill-neutral-950 stroke-white/10" />
+        <rect x="20" y="15" width="14" height="14" rx="3.5" fill={GREEN} />
+        <text x="27" y="25" textAnchor="middle" fontSize="8.5" fontWeight="700" fill="#fff">
+          S
+        </text>
+        <text x="40" y="25.5" fontSize="9" fontWeight="600" fill="#fff">
+          Sajha Yatayat
+        </text>
+        <text x="106" y="25.5" fontSize="9" className="fill-neutral-400 font-mono">
+          S2
+        </text>
+        <text x="258" y="25.5" textAnchor="end" fontSize="7.5" className="fill-neutral-400">
+          Lubhu · Lagankhel · RNAC
+        </text>
+      </g>
+
+      <g>
+        <Loop attr="opacity" frames={vanish(0.5)} />
+        <Move frames={[[0, '0 0'], [0.5, '0 0'], [0.54, '0 16'], [1, '0 16']]} />
+        <rect x="14" y="6" width="252" height="156" rx="9" className={PANEL} />
+        <g fill="none" strokeWidth="1.2" strokeLinejoin="round" className="stroke-neutral-700 dark:stroke-neutral-200">
+          <path d="M24 15 h5 a2 2 0 0 1 2 2 v8 a1.5 1.5 0 0 0 -1.5 -1.5 H24 Z M38 15 h-5 a2 2 0 0 0 -2 2 v8 a1.5 1.5 0 0 1 1.5 -1.5 H38 Z" />
+        </g>
+        <text x="44" y="24" fontSize="9.5" fontWeight="600" className={STRONG}>
+          Bus routes &amp; stops
+        </text>
+        <rect x="24" y="32" width="232" height="16" rx="5" className="fill-neutral-100 dark:fill-white/10" />
+        <rect x="26" y="34" width="76" height="12" rx="4" className={PANEL} />
+        <text x="64" y="42.5" textAnchor="middle" fontSize="7.5" fontWeight="600" className={STRONG}>
+          Operators {BUS_SERVICES.length}
+        </text>
+        <text x="140" y="42.5" textAnchor="middle" fontSize="7.5" className={MUTED}>
+          Directions
+        </text>
+        <text x="217" y="42.5" textAnchor="middle" fontSize="7.5" className={MUTED}>
+          Symbols
+        </text>
+        <rect x="24" y="54" width="232" height="18" rx="6" className={PANEL} />
+        <g fill="none" strokeWidth="1.2" strokeLinecap="round" className="stroke-neutral-500">
+          <circle cx="33" cy="62.5" r="3" />
+          <path d="M35.3 64.8 L37.5 67" />
+        </g>
+        <text x="42" y="65.5" fontSize="7.5" className={MUTED}>
+          Search a stop, place or route (e.g. Kalanki, S1)
+        </text>
+        {operators.map((op) => (
+          <g key={op.code}>
+            <rect x="24" y={op.y} width="232" height="36" rx="6" fill="none" strokeWidth="1" className="stroke-black/10 dark:stroke-white/15" />
+            <rect x="30" y={op.y + 5} width="13" height="13" rx="3.5" fill={opColor(op.code)} />
+            <text x="36.5" y={op.y + 14.5} textAnchor="middle" fontSize="8" fontWeight="700" fill="#fff">
+              {op.code}
+            </text>
+            <text x="49" y={op.y + 14.5} fontSize="8.5" fontWeight="600" className={STRONG}>
+              {op.name}
+            </text>
+            {op.routes.map((code, i) => (
+              <Chip key={code} x={30 + i * 22} y={op.y + 20} color={opColor(op.code)} label={code} w={19} />
+            ))}
+          </g>
+        ))}
+        <rect x="49.5" y="97.5" width="24" height="19" rx="5" fill="none" strokeWidth="1.5" className="stroke-neutral-900 dark:stroke-white">
+          <Loop attr="opacity" frames={appear(0.4)} />
+        </rect>
+      </g>
+      <Tap x={61.5} y={107} at={0.42} />
     </Scene>
   );
 }
@@ -298,21 +390,21 @@ function TripArt() {
 
       <g>
         <Loop attr="opacity" frames={appear(0.34)} />
-        <circle cx="18" cy="122" r="5" fill={GREEN} stroke="#fff" strokeWidth="1.5" />
+        <circle cx="18" cy="122" r="5" fill={PIN_BOARD} stroke="#fff" strokeWidth="1.5" />
         <text x="10" y="140" fontSize="8" fontWeight="600" className={STRONG}>
-          Board S2
+          Board M2
         </text>
       </g>
       <g>
         <Loop attr="opacity" frames={appear(0.5)} />
-        <circle cx="140" cy="70" r="5" fill={AMBER} stroke="#fff" strokeWidth="1.5" />
+        <circle cx="140" cy="70" r="5" fill={PIN_CHANGE} stroke="#fff" strokeWidth="1.5" />
         <text x="148" y="64" fontSize="8" fontWeight="600" className={STRONG}>
-          Change to 21
+          Change to X1
         </text>
       </g>
       <g>
         <Loop attr="opacity" frames={appear(0.68)} />
-        <circle cx="262" cy="150" r="5" fill={RED} stroke="#fff" strokeWidth="1.5" />
+        <circle cx="262" cy="150" r="5" fill={PIN_OFF} stroke="#fff" strokeWidth="1.5" />
         <text x="254" y="140" textAnchor="end" fontSize="8" fontWeight="600" className={STRONG}>
           Get off
         </text>
@@ -327,7 +419,7 @@ function TripArt() {
 
       <rect x="12" y="10" width="256" height="46" rx="8" className={PANEL} />
       <path d="M32 33 H 258" strokeWidth="1" className="stroke-black/10 dark:stroke-white/15" />
-      <circle cx="23" cy="22" r="3.5" fill={GREEN} />
+      <circle cx="23" cy="22" r="3.5" fill={PIN_BOARD} />
       <text x="32" y="25.5" fontSize="8" className={MUTED}>
         From
       </text>
@@ -340,7 +432,7 @@ function TripArt() {
         <path d="M252 15.5 V 17.5 M252 26.5 V 28.5 M245.5 22 H 247.5 M256.5 22 H 258.5" />
       </g>
       <Tap x={252} y={22} at={0.08} />
-      <circle cx="23" cy="44" r="3.5" fill={RED} />
+      <circle cx="23" cy="44" r="3.5" fill={PIN_OFF} />
       <text x="32" y="47.5" fontSize="8" className={MUTED}>
         To
       </text>
@@ -353,11 +445,11 @@ function TripArt() {
       <g>
         <Loop attr="opacity" frames={appear(0.76)} />
         <rect x="60" y="138" width="152" height="22" rx="6" className={PANEL} />
-        <Chip x={66} y={142} color={RED} label="S2" w={18} />
+        <Chip x={66} y={142} color={RED} label="M2" w={18} />
         <text x="89" y="152.5" fontSize="8.5" className={MUTED}>
           →
         </text>
-        <Chip x={99} y={142} color={BLUE} label="21" w={18} />
+        <Chip x={99} y={142} color={BLUE} label="X1" w={18} />
         <text x="124" y="152.5" fontSize="8" className={MUTED}>
           28 min · 1 change
         </text>
@@ -451,6 +543,13 @@ const STEPS = [
     title: 'See the buses at a stop',
     body: 'Tap a stop on the map. A card lists every bus that stops there. Tap one to see its route, or use Start here and Go here to plan a trip.',
     Art: StopArt,
+  },
+  {
+    key: 'services',
+    title: 'Browse every bus service',
+    body: `The book button lists all ${BUS_SERVICES.length} bus operators and their routes. Search a stop, place or route code, then tap a code like S2 to see that route on the map.`,
+    Art: ServicesArt,
+    target: 'legend',
   },
   {
     key: 'trip',

@@ -97,6 +97,7 @@ export default function Controls({
       {/* Map tools */}
       <div className="surface rounded-xl flex flex-col p-0.5" role="group" aria-label="Map tools">
         <button
+          data-tour="legend"
           onClick={onToggleLegend}
           data-tip="Bus services & legend"
           aria-label="Toggle legend"
