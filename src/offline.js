@@ -155,6 +155,7 @@ window.addEventListener('appinstalled', () => {
 /**
  * PWA install state. canInstall: browser offered an install prompt (Chrome/Edge/Android).
  * showIOSHint: iOS Safari has no prompt, so the UI explains "Add to Home Screen" instead.
+ * installed: running as the installed app.
  * install() resolves to 'accepted' | 'dismissed' | 'unavailable'.
  */
 export function useInstallPrompt() {
@@ -178,6 +179,7 @@ export function useInstallPrompt() {
   return {
     canInstall: !isInstalled && installPrompt !== null,
     showIOSHint: !isInstalled && isIOS(),
+    installed: isInstalled,
     install,
   };
 }

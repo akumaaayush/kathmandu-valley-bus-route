@@ -18,6 +18,13 @@ const isSnoozed = () => {
   }
 };
 
+// Also used by the help tour, which shows its own install step
+export const snoozeInstallCard = () => {
+  try {
+    localStorage.setItem(DISMISSED_KEY, String(Date.now()));
+  } catch {}
+};
+
 export default function InstallCard({ hidden }) {
   const { canInstall, showIOSHint, install } = useInstallPrompt();
   const [isDue, setIsDue] = useState(false);
@@ -28,11 +35,14 @@ export default function InstallCard({ hidden }) {
     return () => clearTimeout(timer);
   }, []);
 
+  // Something else may have snoozed it while hidden (the help tour)
+  useEffect(() => {
+    if (!hidden) setIsDismissed(isSnoozed());
+  }, [hidden]);
+
   const dismiss = () => {
     setIsDismissed(true);
-    try {
-      localStorage.setItem(DISMISSED_KEY, String(Date.now()));
-    } catch {}
+    snoozeInstallCard();
   };
 
   if (hidden || isDismissed || !isDue || !(canInstall || showIOSHint)) return null;

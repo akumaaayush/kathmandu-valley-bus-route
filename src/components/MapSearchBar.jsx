@@ -65,7 +65,7 @@ export default function MapSearchBar({ selected, onSelectStop, onClear, onDirect
 
   return (
     <div ref={containerRef} className="absolute top-3 left-3 right-3 sm:right-auto sm:top-4 sm:left-4 sm:w-96 z-[1000] ">
-      <div className="surface flex items-center rounded-xl focus-within:border-neutral-400 dark:focus-within:border-white/25">
+      <div data-tour="search" className="surface flex items-center rounded-xl focus-within:border-neutral-400 dark:focus-within:border-white/25">
         <Search className="w-4 h-4 ml-3.5 mr-2 text-neutral-500 shrink-0" />
         <input
           ref={inputRef}

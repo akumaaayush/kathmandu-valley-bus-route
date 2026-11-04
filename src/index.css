@@ -546,3 +546,28 @@ button, [role="button"], .cursor-pointer, .leaflet-control button {
     transform: translateY(8px);
   }
 }
+
+/* Help tour (HelpTour.jsx): entrance, and the "Show me" ring around a real control */
+@keyframes tour-fade {
+  from { opacity: 0; }
+}
+@keyframes tour-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+.tour-pulse {
+  animation: tour-pulse 0.9s ease-out 3;
+}
+@keyframes tour-pulse {
+  0% { box-shadow: var(--panel-shadow), 0 0 0 0 var(--ring); }
+  100% { box-shadow: var(--panel-shadow), 0 0 0 14px transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tour-pulse {
+    animation: none;
+    outline: 2px solid var(--ring);
+    outline-offset: 3px;
+  }
+}

@@ -8,6 +8,7 @@ import MapSearchBar from './components/MapSearchBar';
 import SpotBanner from './components/SpotBanner';
 import RouteBanner from './components/RouteBanner';
 import LineChooser from './components/LineChooser';
+import HelpTour, { isTourSeen, pulseTarget } from './components/HelpTour';
 import { loadLineFinder, loadPlanner } from './usePlanner';
 import { getOperatorRoutes } from './data/dedicatedRoutesData';
 import { BUS_SERVICES } from './data/legendData';
@@ -26,6 +27,7 @@ const getSubRouteSvgIds = (operatorName, codes) => [
 export default function App() {
   const [initialLink] = useState(readShareLink);
   const [isLegendOpen, setIsLegendOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [tapInfo, setTapInfo] = useState(null); // lines and stop under a map tap, for the line chooser
   // Lines at a spot (tapped point or searched stop), across operators: { title, lines, selectedIds }; [] = all
   const [spot, setSpot] = useState(null);
@@ -87,6 +89,22 @@ export default function App() {
     }, wait);
     return () => clearTimeout(timer);
   }, []);
+
+  // First plain visit: show the how-to once the boot screen has gone. A shared link opens straight to its content.
+  useEffect(() => {
+    const { service, place, trip, spot: sharedSpot } = initialLink;
+    if (service || place || trip || sharedSpot || isTourSeen()) return;
+    const timer = setTimeout(() => setIsHelpOpen(true), 1400);
+    return () => clearTimeout(timer);
+  }, [initialLink]);
+
+  // "Show me" from the tour: close it and ring the real control (the search bar only shows with the planner closed)
+  const handleTourShowMe = (target) => {
+    setIsHelpOpen(false);
+    setIsLegendOpen(false);
+    if (target === 'search') setIsTripOpen(false);
+    pulseTarget(target);
+  };
 
   const handleToggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
@@ -479,6 +497,11 @@ export default function App() {
         isTripOpen={isTripOpen}
         theme={theme}
         onToggleTheme={handleToggleTheme}
+        onOpenHelp={() => {
+          setIsLegendOpen(false);
+          setIsHelpOpen(true);
+        }}
+        isHelpOpen={isHelpOpen}
       />
 
       {isTripOpen ? (
@@ -530,6 +553,8 @@ export default function App() {
         onNavigateToLocation={handleNavigateToLocation}
         theme={theme}
       />
+
+      {isHelpOpen && <HelpTour onClose={() => setIsHelpOpen(false)} onShowMe={handleTourShowMe} />}
     </main>
   );
 }

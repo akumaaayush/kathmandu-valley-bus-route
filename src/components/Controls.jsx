@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Minus, Maximize, Minimize, BookOpen, Sun, Moon, Share2, Check, Navigation } from 'lucide-react';
+import { Plus, Minus, Maximize, Minimize, BookOpen, Sun, Moon, Share2, Check, Navigation, CircleHelp } from 'lucide-react';
 import OfflineButton from './OfflineButton';
 import { shareLink } from '../shareLink';
 
@@ -13,6 +13,8 @@ export default function Controls({
   isTripOpen,
   theme,
   onToggleTheme,
+  onOpenHelp,
+  isHelpOpen,
 }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -80,6 +82,7 @@ export default function Controls({
     <div className="absolute bottom-[calc(2rem+env(safe-area-inset-bottom))] right-3.5 sm:right-5 z-[1000] flex flex-col items-end gap-2 pointer-events-auto">
       {/* Primary action: trip planner (stop or GPS -> buses to the destination) */}
       <button
+        data-tour="trip"
         onClick={onToggleTrip}
         title="Find your bus"
         aria-label="Find your bus"
@@ -102,6 +105,9 @@ export default function Controls({
         >
           <BookOpen className="w-4 h-4 stroke-[2] pointer-events-none" />
         </button>
+        <button onClick={onOpenHelp} title="How to use" aria-label="How to use this map" className="map-tool">
+          <CircleHelp className="w-4 h-4 stroke-[2] pointer-events-none" />
+        </button>
         <button
           onClick={shareCurrentView}
           title={isLinkCopied ? 'Link copied' : 'Share link to this view'}
@@ -114,7 +120,7 @@ export default function Controls({
             <Share2 className="w-4 h-4 stroke-[2] pointer-events-none" />
           )}
         </button>
-        <OfflineButton hideInstallCard={isTripOpen} />
+        <OfflineButton hideInstallCard={isTripOpen || isHelpOpen} />
         <button
           onClick={onToggleTheme}
           title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
