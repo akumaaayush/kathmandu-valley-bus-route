@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, LocateFixed, MapPin, Search, Footprints, Bus, ArrowRight, RefreshCw, LoaderCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, LocateFixed, MapPin, Search, Footprints, Bus, ArrowRight, ArrowUpDown, RefreshCw, LoaderCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { usePlanner } from '../usePlanner';
 
 // Trip planner: a chosen stop (or, on request, GPS -> nearest stops) -> buses to the destination, with changes if
@@ -253,6 +253,15 @@ export default function TripPanel({
     return planner.planTrips(origins, destination);
   }, [planner, origins, destination, isOutsideNetwork]);
 
+  // Swap From and To (the trip back). From "my location", the nearest stop becomes the destination.
+  const swapFrom = useGps ? nearest?.station ?? null : originStop;
+  const canSwap = Boolean(swapFrom || destination);
+  const swapStops = () => {
+    setUseGps(false);
+    setOriginStop(destination);
+    setDestination(swapFrom);
+  };
+
   const alreadyThere = destination && origins.some((o) => o.station.name === destination.name && o.walkM < 300);
 
   // A shared link may pick an option; any later re-plan starts at the first one
@@ -457,7 +466,19 @@ export default function TripPanel({
 
         {/* To */}
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 mb-1">To</div>
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">To</div>
+            {canSwap && (
+              <button
+                onClick={swapStops}
+                data-tip="Swap start and destination"
+                aria-label="Swap start and destination"
+                className="-my-1 p-1 rounded-lg text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 dark:hover:text-white dark:hover:bg-white/10 cursor-pointer"
+              >
+                <ArrowUpDown className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
           {destination ? (
             <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-neutral-100 dark:bg-white/[0.06] text-sm">
               <span className="flex items-center gap-2 min-w-0">

@@ -1,7 +1,7 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
 import { BUS_SERVICES } from './src/data/legendData.js'
@@ -160,6 +160,78 @@ function seoPlugin(siteUrl) {
   }
 }
 
+// Security headers for Cloudflare, written to dist/_headers after the build. The CSP allows the pages' inline
+// scripts and inline event handlers by hash, read from the built HTML, so editing index.html can never leave the
+// policy out of step (a change there just changes the hash). `vite preview` serves the same headers for testing.
+const cspHash = (text) => `'sha256-${createHash('sha256').update(text).digest('base64')}'`;
+const FONT_CSS = 'https://fonts.googleapis.com';
+const FONT_FILES = 'https://fonts.gstatic.com';
+
+function securityHeaders(htmlPages) {
+  const scriptHashes = new Set();
+  const handlerHashes = new Set();
+  for (const html of htmlPages) {
+    for (const [, attrs, body] of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
+      // External scripts are covered by 'self'; JSON-LD is data, never run
+      if (/\bsrc\s*=/i.test(attrs) || /application\/ld\+json/i.test(attrs)) continue;
+      scriptHashes.add(cspHash(body));
+    }
+    for (const [, body] of html.matchAll(/\son[a-z]+="([^"]*)"/gi)) handlerHashes.add(cspHash(body));
+  }
+  const csp = [
+    "default-src 'self'",
+    `script-src 'self' ${[...scriptHashes].join(' ')}${handlerHashes.size ? ` 'unsafe-hashes' ${[...handlerHashes].join(' ')}` : ''}`,
+    // Inline styles: index.html's <style> blocks and Leaflet / map-marker style attributes
+    `style-src 'self' 'unsafe-inline' ${FONT_CSS}`,
+    `font-src 'self' ${FONT_FILES}`,
+    "img-src 'self' data: blob:",
+    // The service worker fetches (and caches) the font files itself
+    `connect-src 'self' ${FONT_CSS} ${FONT_FILES}`,
+    "manifest-src 'self'",
+    "worker-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join('; ');
+  return {
+    'Content-Security-Policy': csp,
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Permissions-Policy': 'geolocation=(self), camera=(), microphone=(), payment=(), usb=()',
+    'Cross-Origin-Opener-Policy': 'same-origin',
+  };
+}
+
+function headersPlugin() {
+  let outDir;
+  const headersFile = () => path.join(outDir, '_headers');
+  return {
+    name: 'ktm-headers',
+    apply: (_config, { command, isPreview }) => command === 'build' || Boolean(isPreview),
+    configResolved(config) {
+      outDir = path.resolve(config.root, config.build.outDir);
+    },
+    closeBundle() {
+      const pages = readdirSync(outDir).filter((f) => f.endsWith('.html')).map((f) => readFileSync(path.join(outDir, f), 'utf8'));
+      const lines = Object.entries(securityHeaders(pages)).map(([name, value]) => `  ${name}: ${value}`);
+      writeFileSync(headersFile(), `/*\n${lines.join('\n')}\n`);
+    },
+    // `vite preview`: serve the built headers, so the policy is tested before it ships
+    configurePreviewServer(server) {
+      let headers = [];
+      try {
+        headers = readFileSync(headersFile(), 'utf8').split('\n').map((l) => l.match(/^\s+([\w-]+):\s*(.+)$/)).filter(Boolean);
+      } catch {}
+      server.middlewares.use((_req, res, next) => {
+        for (const [, name, value] of headers) res.setHeader(name, value);
+        next();
+      });
+    },
+  };
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
   plugins: [
@@ -167,6 +239,7 @@ export default defineConfig(({ mode }) => ({
     tailwindcss(),
     offlinePlugin(),
     seoPlugin(loadEnv(mode, process.cwd()).VITE_SITE_URL),
+    headersPlugin(),
   ],
   base: './', // Ensures relative assets for GitHub Pages and Cloudflare Pages
   build: {

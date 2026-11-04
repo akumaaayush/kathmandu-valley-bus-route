@@ -8968,10 +8968,12 @@ export function getPlaceCoordinates(name) {
   const exact = ALL_MAP_PLACES.find((p) => p.name.toLowerCase() === q);
   if (exact) return { x: exact.x, y: exact.y, name: exact.name, category: exact.category };
 
-  // 2. Word-contained match
-  const partial = ALL_MAP_PLACES.find(
-    (p) => p.name.toLowerCase().includes(q) || q.includes(p.name.toLowerCase())
-  );
+  // 2. Word-contained match, either way round (3+ characters, so "?p=a" does not pin a random place)
+  const MIN_PARTIAL = 3;
+  const partial = ALL_MAP_PLACES.find((p) => {
+    const n = p.name.toLowerCase();
+    return (q.length >= MIN_PARTIAL && n.includes(q)) || (n.length >= MIN_PARTIAL && q.includes(n));
+  });
   if (partial) return { x: partial.x, y: partial.y, name: partial.name, category: partial.category };
 
   return null;

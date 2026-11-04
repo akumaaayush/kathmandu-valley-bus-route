@@ -19,6 +19,11 @@ const SVG_SCALE_Y = 7.36564;
 const SVG_OFFSET_Y = -23.53;
 
 // Exact 1-to-1 mapping from operator names to SVG element IDs in Kathmandu_Bus_Route_Map.svg
+// Leaflet markers take HTML strings: every value put into one is escaped, and colours must be plain hex
+const escapeHtml = (text) =>
+  String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const safeColor = (color, fallback) => (/^#[0-9a-f]{3,8}$/i.test(color ?? '') ? color : fallback);
+
 const OPERATOR_SVG_MAP = {
   'Sajha Yatayat': 'Sajha_Yatayat',
   'Nepal Yatayat': 'Nepal_Yatayat',
@@ -173,33 +178,33 @@ export default function MapViewer({ registerMapControls, onPlaceCleared, onMapTa
       let markerHtml = '';
       if (item.tier === 'city') {
         markerHtml = `
-          <div class="gmap-label-wrapper tier-city" data-id="${item.id}">
-            <div class="gmap-city-name gmap-halo-text">${item.name}</div>
-            <div class="gmap-city-nepali gmap-halo-text">${item.nepali}</div>
+          <div class="gmap-label-wrapper tier-city" data-id="${escapeHtml(item.id)}">
+            <div class="gmap-city-name gmap-halo-text">${escapeHtml(item.name)}</div>
+            <div class="gmap-city-nepali gmap-halo-text">${escapeHtml(item.nepali)}</div>
           </div>
         `;
       } else if (item.tier === 'hub') {
         markerHtml = `
-          <div class="gmap-label-wrapper tier-hub" data-id="${item.id}">
-            <div class="gmap-hub-name gmap-halo-text">${item.name}</div>
-            <div class="gmap-hub-nepali gmap-halo-text">${item.nepali}</div>
+          <div class="gmap-label-wrapper tier-hub" data-id="${escapeHtml(item.id)}">
+            <div class="gmap-hub-name gmap-halo-text">${escapeHtml(item.name)}</div>
+            <div class="gmap-hub-nepali gmap-halo-text">${escapeHtml(item.nepali)}</div>
           </div>
         `;
       } else if (item.tier === 'local') {
         markerHtml = `
-          <div class="gmap-label-wrapper tier-local" data-id="${item.id}">
-            <div class="gmap-local-name gmap-halo-text">${item.name}</div>
-            <div class="gmap-local-nepali gmap-halo-text">${item.nepali}</div>
+          <div class="gmap-label-wrapper tier-local" data-id="${escapeHtml(item.id)}">
+            <div class="gmap-local-name gmap-halo-text">${escapeHtml(item.name)}</div>
+            <div class="gmap-local-nepali gmap-halo-text">${escapeHtml(item.nepali)}</div>
           </div>
         `;
       } else if (item.tier === 'peak') {
         markerHtml = `
-          <div class="gmap-label-wrapper tier-peak" data-id="${item.id}">
+          <div class="gmap-label-wrapper tier-peak" data-id="${escapeHtml(item.id)}">
             <div class="gmap-peak-header gmap-halo-text">
               <span class="gmap-peak-icon">▲</span>
-              <span class="gmap-peak-name">${item.name}</span>
+              <span class="gmap-peak-name">${escapeHtml(item.name)}</span>
             </div>
-            <div class="gmap-peak-sub gmap-halo-text">${item.nepali}</div>
+            <div class="gmap-peak-sub gmap-halo-text">${escapeHtml(item.nepali)}</div>
           </div>
         `;
       }
@@ -246,10 +251,10 @@ export default function MapViewer({ registerMapControls, onPlaceCleared, onMapTa
       const markerHtml = `
         <div class="gmap-pin-root">
           <div class="gmap-pin-pulse-container">
-            <div class="gmap-stop-dot" style="background-color: ${placeInfo.color || '#e11d48'};"></div>
+            <div class="gmap-stop-dot" style="background-color: ${safeColor(placeInfo.color, '#e11d48')};"></div>
             <div class="gmap-pin-badge">
-              <span class="gmap-pin-badge-name">${placeInfo.name}</span>
-              ${placeInfo.subtitle ? `<span class="gmap-pin-badge-category">${placeInfo.subtitle}</span>` : ''}
+              <span class="gmap-pin-badge-name">${escapeHtml(placeInfo.name)}</span>
+              ${placeInfo.subtitle ? `<span class="gmap-pin-badge-category">${escapeHtml(placeInfo.subtitle)}</span>` : ''}
             </div>
           </div>
         </div>
@@ -463,8 +468,6 @@ export default function MapViewer({ registerMapControls, onPlaceCleared, onMapTa
     // --- Trip planner: "you are here" dot and board / change / get-off pins ---
     let userMarker = null;
     const tripLayer = L.layerGroup().addTo(map);
-    const escapeHtml = (text) =>
-      String(text).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
     const setUserLocation = (point) => {
       if (!point) {

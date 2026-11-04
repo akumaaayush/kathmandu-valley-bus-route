@@ -164,6 +164,9 @@ git push -u origin main
    - **Build output directory**: `dist`
 4. Click **Save and Deploy**.
 
+### Security headers
+The build writes `dist/_headers` (Content-Security-Policy, `nosniff`, `frame-ancestors 'none'`, Referrer- and Permissions-Policy), which Cloudflare applies to every response. The CSP allows the inline scripts in `index.html` and `404.html` by hash, computed from the built HTML (`headersPlugin` in `vite.config.js`), so editing them needs no manual update. `npm run preview` serves the same headers. Any new third-party script or connection (analytics, another font host) must be added to the policy there, or the browser blocks it. GitHub Pages ignores `_headers`.
+
 ### 3. Deploy to GitHub Pages (Alternative)
 - Go to repository **Settings** → **Pages**.
 - Select **Deploy from a branch** → Branch: `main` / Folder: `/dist` (or use GitHub Actions static pages deployment).

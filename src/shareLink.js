@@ -1,6 +1,5 @@
 import { BUS_SERVICES } from './data/legendData';
 import { getOperatorRoutes } from './data/dedicatedRoutesData';
-import { getPlaceCoordinates } from './data/placesData';
 
 // Shareable links: the selected operator, route branches and pinned place live in the URL query,
 // e.g. ?op=S&r=S1,S2&p=Lagankhel. An open trip plan adds ?from=Jawalakhel&to=Ratnapark&opt=2 (stop names,
@@ -25,8 +24,8 @@ export function readShareLink(search = window.location.search) {
     .map((code) => code.trim().toUpperCase())
     .filter((code) => branchCodes.includes(code));
 
-  const placeName = params.get('p');
-  const place = placeName ? getPlaceCoordinates(placeName) : null;
+  // Checked against the places list by resolveSharedPlace, which loads it only for links that name a place
+  const placeName = params.get('p')?.trim() || null;
 
   // Stop names are checked against the stop network when the trip planner loads
   const from = params.get('from')?.trim() || null;
@@ -41,7 +40,14 @@ export function readShareLink(search = window.location.search) {
     ? { x, y, codes, selected: codeList(params.get('sel')).filter((code) => codes.includes(code)) }
     : null;
 
-  return { service, subRouteCodes: [...new Set(subRouteCodes)], place, trip, spot };
+  return { service, subRouteCodes: [...new Set(subRouteCodes)], placeName, trip, spot };
+}
+
+// The shared place (?p=), or null when the link has none or it is unknown
+export async function resolveSharedPlace(name) {
+  if (!name) return null;
+  const { getPlaceCoordinates } = await import('./data/placesData');
+  return getPlaceCoordinates(name);
 }
 
 export function buildShareUrl({ service, subRouteCodes, place, trip, spot }) {

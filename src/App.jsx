@@ -1,19 +1,19 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import MapViewer from './components/MapViewer';
 import Controls from './components/Controls';
-import LegendModal from './components/LegendModal';
+import { LoaderCircle } from 'lucide-react';
 import AttributionBar from './components/AttributionBar';
 import TripPanel from './components/TripPanel';
 import MapSearchBar from './components/MapSearchBar';
 import SpotBanner from './components/SpotBanner';
 import RouteBanner from './components/RouteBanner';
 import LineChooser from './components/LineChooser';
-import HelpTour, { isTourSeen, pulseTarget } from './components/HelpTour';
+import { isTourSeen, pulseTarget } from './tourState';
 import Tooltips from './components/Tooltips';
-import { loadLineFinder, loadPlanner } from './usePlanner';
+import { loadHelpTour, loadLegend, loadLineFinder, loadPlanner, useLazyComponent } from './usePlanner';
 import { getOperatorRoutes } from './data/dedicatedRoutesData';
 import { BUS_SERVICES } from './data/legendData';
-import { readShareLink, writeShareLink } from './shareLink';
+import { readShareLink, resolveSharedPlace, writeShareLink } from './shareLink';
 
 // SVG element IDs for the selected branch codes of an operator
 const getSubRouteSvgIds = (operatorName, codes) => [
@@ -28,7 +28,12 @@ const getSubRouteSvgIds = (operatorName, codes) => [
 export default function App() {
   const [initialLink] = useState(readShareLink);
   const [isLegendOpen, setIsLegendOpen] = useState(false);
+  // The legend with its place index, and the help tour, load on first open (the legend then stays mounted so its
+  // search and tab are kept)
+  const [legendFailed, setLegendFailed] = useState(false);
+  const LegendModal = useLazyComponent(loadLegend, isLegendOpen, () => setLegendFailed(true));
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const HelpTour = useLazyComponent(loadHelpTour, isHelpOpen, () => setIsHelpOpen(false));
   const [tapInfo, setTapInfo] = useState(null); // lines and stop under a map tap, for the line chooser
   // Lines at a spot (tapped point or searched stop), across operators: { title, lines, selectedIds }; [] = all
   const [spot, setSpot] = useState(null);
@@ -49,7 +54,7 @@ export default function App() {
   const [selectedStop, setSelectedStop] = useState(null); // { station, lines } from the stop search
   const [activeRoute, setActiveRoute] = useState(initialLink.trip ? null : initialLink.service);
   const [selectedSubRouteCodes, setSelectedSubRouteCodes] = useState(initialLink.trip ? [] : initialLink.subRouteCodes);
-  const [activePlace, setActivePlace] = useState(initialLink.trip ? null : initialLink.place);
+  const [activePlace, setActivePlace] = useState(null); // a shared place is set once resolved (see below)
   const [theme, setTheme] = useState(() => {
     try {
       const saved = localStorage.getItem('ktm_transit_theme');
@@ -93,8 +98,8 @@ export default function App() {
 
   // First plain visit: show the how-to once the boot screen has gone. A shared link opens straight to its content.
   useEffect(() => {
-    const { service, place, trip, spot: sharedSpot } = initialLink;
-    if (service || place || trip || sharedSpot || isTourSeen()) return;
+    const { service, placeName, trip, spot: sharedSpot } = initialLink;
+    if (service || placeName || trip || sharedSpot || isTourSeen()) return;
     const timer = setTimeout(() => setIsHelpOpen(true), 1400);
     return () => clearTimeout(timer);
   }, [initialLink]);
@@ -117,12 +122,16 @@ export default function App() {
 
   // Restore the map view from a shared link (MapViewer registers its controls before this runs)
   useEffect(() => {
-    const { service, subRouteCodes, place, trip, spot: sharedSpot } = initialLink;
+    const { service, subRouteCodes, placeName, trip, spot: sharedSpot } = initialLink;
     if (trip) return; // the trip panel restores itself
-    // "Lines here": rebuild the card from the stop network (unknown codes are dropped)
-    if (sharedSpot && !service) {
-      let cancelled = false;
-      loadPlanner().then(({ lines, stations, linesAtStop }) => {
+    let cancelled = false;
+    (async () => {
+      const place = await resolveSharedPlace(placeName);
+      if (cancelled) return;
+      if (place) setActivePlace(place);
+      // "Lines here": rebuild the card from the stop network (unknown codes are dropped)
+      if (sharedSpot && !service) {
+        const { lines, stations, linesAtStop } = await loadPlanner();
         if (cancelled) return;
         const byCode = (code) => lines.find((l) => l.codes[0] === code);
         const spotLines = sharedSpot.codes.map(byCode).filter(Boolean);
@@ -137,26 +146,28 @@ export default function App() {
           at: { x: sharedSpot.x, y: sharedSpot.y },
         });
         if (!place) mapControlsRef.current?.flyToLocation(sharedSpot.x, sharedSpot.y, 5.2);
-      });
-      return () => {
-        cancelled = true;
-      };
-    }
-    if (place) {
-      const subRoute = service && subRouteCodes.length === 1
-        ? getOperatorRoutes(service.name).find((sr) => sr.code === subRouteCodes[0])
-        : null;
-      mapControlsRef.current?.flyToLocation(place.x, place.y, 5.8, {
-        name: place.name,
-        subtitle: subRoute ? subRoute.name : service ? `${service.name} (${service.code})` : place.category,
-        color: service?.color,
-      });
-    }
-    if (service) {
-      const svgIds = getSubRouteSvgIds(service.name, subRouteCodes);
-      mapControlsRef.current?.highlightRoute(service.name, svgIds.length > 0 ? svgIds : null);
-    }
+        return;
+      }
+      if (place) {
+        const subRoute = service && subRouteCodes.length === 1
+          ? getOperatorRoutes(service.name).find((sr) => sr.code === subRouteCodes[0])
+          : null;
+        mapControlsRef.current?.flyToLocation(place.x, place.y, 5.8, {
+          name: place.name,
+          subtitle: subRoute ? subRoute.name : service ? `${service.name} (${service.code})` : place.category,
+          color: service?.color,
+        });
+      }
+      if (service) {
+        const svgIds = getSubRouteSvgIds(service.name, subRouteCodes);
+        mapControlsRef.current?.highlightRoute(service.name, svgIds.length > 0 ? svgIds : null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [initialLink]);
+
 
   // Keep the URL in sync so the current view can be shared
   useEffect(() => {
@@ -548,14 +559,47 @@ export default function App() {
       <AttributionBar />
 
       {/* Web Format Legend Modal with Full City Route Search & Direct Map Navigation */}
-      <LegendModal
-        isOpen={isLegendOpen}
-        onClose={() => setIsLegendOpen(false)}
-        onNavigateToLocation={handleNavigateToLocation}
-        theme={theme}
-      />
+      {LegendModal ? (
+        <LegendModal
+          isOpen={isLegendOpen}
+          onClose={() => setIsLegendOpen(false)}
+          onNavigateToLocation={handleNavigateToLocation}
+          theme={theme}
+        />
+      ) : (
+        isLegendOpen && (
+          <div className="fixed inset-0 z-[2000] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm" onClick={() => setIsLegendOpen(false)}>
+            {legendFailed ? (
+              <div
+                role="alertdialog"
+                aria-labelledby="legend-failed-title"
+                onClick={(e) => e.stopPropagation()}
+                className="surface w-full max-w-xs rounded-xl p-4 text-neutral-800 dark:text-neutral-100"
+              >
+                <p id="legend-failed-title" className="text-sm font-semibold text-neutral-900 dark:text-white">Couldn't load bus services</p>
+                <p className="mt-1 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
+                  Connect to the internet and reload. Once loaded, it works offline.
+                </p>
+                <div className="mt-3 flex justify-end gap-2">
+                  <button
+                    onClick={() => setIsLegendOpen(false)}
+                    className="h-8 px-3 rounded-lg text-xs font-medium border border-neutral-200 dark:border-white/15 hover:bg-neutral-50 dark:hover:bg-white/[0.06] cursor-pointer"
+                  >
+                    Close
+                  </button>
+                  <button onClick={() => window.location.reload()} className="btn-primary h-8 px-3 rounded-lg text-xs font-semibold cursor-pointer">
+                    Reload
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <LoaderCircle className="w-6 h-6 text-white animate-spin" aria-label="Loading bus services" />
+            )}
+          </div>
+        )
+      )}
 
-      {isHelpOpen && <HelpTour onClose={() => setIsHelpOpen(false)} onShowMe={handleTourShowMe} />}
+      {isHelpOpen && HelpTour && <HelpTour onClose={() => setIsHelpOpen(false)} onShowMe={handleTourShowMe} />}
 
       <Tooltips />
     </main>
