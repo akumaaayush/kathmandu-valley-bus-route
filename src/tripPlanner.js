@@ -1,4 +1,5 @@
 import { STATIONS, LINES } from './data/tripNetwork.js';
+import { LANDMARKS } from './data/landmarks.js';
 
 // Trip planning over the network built by scripts/build_trip_network.py.
 // Stations carry real-world coordinates (OpenStreetMap matches, or interpolated), so GPS positions can be
@@ -40,6 +41,7 @@ const transferGroup = stations.map((st) =>
 
 // Buses stopping at a station (including stops drawn right next to it), ordered by route code
 export function linesAtStop(station) {
+  if (station.landmark) return linesAtStop(station.stop);
   const found = new Map();
   for (const s of transferGroup[station.index]) for (const li of linesAtStation[s]) found.set(li, lines[li]);
   return [...found.values()].sort((a, b) => a.label.localeCompare(b.label, 'en', { numeric: true }));
@@ -62,23 +64,32 @@ export function nearestStations(lat, lon, count = 4) {
 
 const normalize = (s) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9 ]/g, '');
 
+const matchScore = (text, q) => {
+  const name = normalize(text);
+  if (name === q) return 100;
+  if (name.startsWith(q)) return 80;
+  if (name.split(' ').some((w) => w.startsWith(q))) return 60;
+  if (name.includes(q)) return 40;
+  return -1;
+};
+
+/** Stops and landmarks matching a typed query, best first. */
 export function searchStations(query, limit = 8) {
   const q = normalize(query.trim());
   if (!q) return [];
   const seen = new Set();
   const scored = [];
   for (const st of stations) {
-    const name = normalize(st.name);
     if (seen.has(st.name)) continue;
-    let score = -1;
-    if (name === q) score = 100;
-    else if (name.startsWith(q)) score = 80;
-    else if (name.split(' ').some((w) => w.startsWith(q))) score = 60;
-    else if (name.includes(q)) score = 40;
+    const score = matchScore(st.name, q);
     if (score >= 0) {
       seen.add(st.name);
       scored.push({ st, score: score + linesAtStation[st.index].length * 0.5 });
     }
+  }
+  for (const lm of landmarks) {
+    const score = Math.max(...[lm.name, ...lm.aliases].map((n) => matchScore(n, q)));
+    if (score >= 0) scored.push({ st: lm, score });
   }
   return scored.sort((a, b) => b.score - a.score).slice(0, limit).map((s) => s.st);
 }
@@ -195,6 +206,25 @@ export function geoToMap(lat, lon) {
   if (!guess || Math.hypot(guess[0] - nearest.x, guess[1] - nearest.y) > 1500) return { x: nearest.x, y: nearest.y };
   return { x: guess[0], y: guess[1] };
 }
+
+// ---------------------------------------------------------------- Landmarks ------------------------------------
+// Places no bus passes (src/data/landmarks.js), reached on foot from their stop. They work like a stop in search and
+// as a trip's start or end: the trip plans from / to the stop and adds the walk. `index` is a string, so it can key
+// lists but never indexes the network.
+export const landmarks = LANDMARKS.flatMap((lm, i) => {
+  const stop = stations.find((st) => st.name === lm.stop);
+  if (!stop) return [];
+  return [{ ...lm, index: `landmark-${i}`, landmark: true, stop, walkM: distanceMeters(lm.lat, lm.lon, stop.lat, stop.lon), ...geoToMap(lm.lat, lm.lon) }];
+});
+
+/** A stop or landmark by its exact name (shared links, history), or null. */
+export const stopByName = (name) => {
+  const n = name.toLowerCase();
+  return stations.find((st) => st.name.toLowerCase() === n) || landmarks.find((lm) => lm.name.toLowerCase() === n) || null;
+};
+
+/** Trip origins for a picked stop or landmark (a landmark starts with the walk to its stop). */
+export const originsFor = (place) => [place.landmark ? { station: place.stop, walkM: place.walkM } : { station: place, walkM: 0 }];
 
 // ---------------------------------------------------------------- Routing --------------------------------------
 // Dijkstra over states "at station s, off the bus" and "at station s, on line L". Riding costs time by
@@ -382,7 +412,7 @@ function toTrip({ states, minutes }, origins, destination) {
 }
 
 /**
- * Plan trips from origin candidates ([{ station, walkM }]) to a destination station.
+ * Plan trips from origin candidates ([{ station, walkM }]) to a destination stop or landmark.
  * Returns up to `limit` distinct options, fastest first. Each further search bans the main line of the
  * options found so far, so alternatives use different buses.
  */
@@ -390,11 +420,13 @@ export function planTrips(origins, destination, limit = 4) {
   const usable = origins.filter((o) => o.walkM <= MAX_ORIGIN_WALK_M);
   const from = usable.length > 0 ? usable : origins.slice(0, 1);
 
-  // Any stop with the destination's name, or drawn right next to it, will do
+  // Any stop with the destination's name, or drawn right next to it, will do. A landmark: its stop, plus the walk.
+  const target = destination.landmark ? destination.stop : destination;
+  const extraMin = destination.landmark ? destination.walkM / WALK_M_PER_MIN : 0;
   const destCosts = new Map();
   for (const st of stations) {
-    if (st.name === destination.name) destCosts.set(st.index, 0);
-    else if (mapDistance(st, destination) < TRANSFER_MAP_PX) destCosts.set(st.index, walkMeters(st.index, destination.index) / WALK_M_PER_MIN);
+    if (st.name === target.name) destCosts.set(st.index, extraMin);
+    else if (mapDistance(st, target) < TRANSFER_MAP_PX) destCosts.set(st.index, extraMin + walkMeters(st.index, target.index) / WALK_M_PER_MIN);
   }
 
   const trips = [];

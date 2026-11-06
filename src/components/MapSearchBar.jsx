@@ -6,6 +6,8 @@ import { addRecentStop, clearHistory, useHistory } from '../history';
 // Stop search on the map. Picking a stop flies to it and opens a card with the buses that stop there and
 // shortcuts into the trip planner. The stop network loads when the search is first focused.
 
+const formatWalk = (m) => (m < 950 ? `${Math.max(10, Math.round(m / 10) * 10)} m` : `${(m / 1000).toFixed(1)} km`);
+
 function LineBadge({ line, onClick }) {
   return (
     <button
@@ -141,7 +143,9 @@ export default function MapSearchBar({ selected, onSelectStop, onClear, onDirect
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm font-medium text-neutral-800 dark:text-neutral-100 truncate">{st.name}</span>
                       <span className="block text-[11px] text-neutral-500 dark:text-neutral-400 truncate">
-                        {stopLines.length} bus route{stopLines.length === 1 ? '' : 's'}: {stopLines.map((l) => l.label).join(', ')}
+                        {st.landmark
+                          ? `No bus here · ~${formatWalk(st.walkM)} walk from ${st.stop.name}`
+                          : `${stopLines.length} bus route${stopLines.length === 1 ? '' : 's'}: ${stopLines.map((l) => l.label).join(', ')}`}
                       </span>
                     </span>
                   </button>
@@ -161,7 +165,9 @@ export default function MapSearchBar({ selected, onSelectStop, onClear, onDirect
             <div className="min-w-0">
               <div className="font-bold text-sm truncate">{selected.station.name}</div>
               <div className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                {selected.lines.length} bus route{selected.lines.length === 1 ? '' : 's'} stop here · tap one to see it
+                {selected.station.landmark
+                  ? `No bus stops here. Nearest stop: ${selected.station.stop.name}, ~${formatWalk(selected.station.walkM)} walk. Its buses:`
+                  : `${selected.lines.length} bus route${selected.lines.length === 1 ? '' : 's'} stop here · tap one to see it`}
               </div>
             </div>
             <button onClick={onClear} aria-label="Close stop details" className="p-0.5 rounded text-neutral-500 hover:text-neutral-700 dark:hover:text-white cursor-pointer">

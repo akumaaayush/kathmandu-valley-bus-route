@@ -53,7 +53,14 @@ OSM_BBOX = (27.50, 85.13, 27.87, 85.62)
 NS = '{http://www.w3.org/2000/svg}'
 ROUTE_CODE_RE = re.compile(r"^[A-Z]\d{1,2}'?(\s*/\s*[A-Z]?\d{1,2})?$")
 # Labels without a stop dot that are street names or text fragments, not stops
-NOT_A_STOP_RE = re.compile(r'(\b(road|marga?|sadak|bato|corridor|path|street)$)|^.{1,5}$|^ka municipality$', re.I)
+# Stops whose label the artwork draws too far from their dots for the automatic pairing: label name -> the SVG point
+# of the stop's dots, plus route codes that pass the stop without a dot of their own there (snapped onto it).
+# Sukedhara: the label sits beside O1/E1, but the stop is the dot row on the ring road between Dhumbarahi and
+# Gopikrishna; O1 runs in along the ring road from there and E1 crosses it at the same junction.
+STOP_OVERRIDES = {
+    'Sukedhara': {'at': (797.2, 425.8), 'also_on': ['O1', 'E1']},
+}
+NOT_A_STOP_RE =re.compile(r'(\b(road|marga?|sadak|bato|corridor|path|street)$)|^.{1,5}$|^ka municipality$', re.I)
 
 
 # ---------------------------------------------------------------- 1. Stations ---------------------------------
@@ -132,6 +139,17 @@ def load_stations():
         dy = max(r[1] - p[1], 0, p[1] - r[3])
         return math.hypot(dx, dy)
 
+    used_s, used_l = set(), set()
+    for name, spec in STOP_OVERRIDES.items():
+        li = next((i for i, lb in enumerate(labels) if lb['name'] == name), None)
+        si = min(range(len(stations)), key=lambda i: np.linalg.norm(stations[i]['dots'].mean(0) - spec['at']))
+        if li is None or np.linalg.norm(stations[si]['dots'].mean(0) - spec['at']) > STATION_CLUSTER_DIST:
+            raise SystemExit(f'STOP_OVERRIDES: no label or stop dots for {name!r}; update its position')
+        stations[si]['name'] = name
+        stations[si]['also_on'] = set(spec.get('also_on', ()))
+        used_s.add(si)
+        used_l.add(li)
+
     pairs = []
     for si, st in enumerate(stations):
         for li, lb in enumerate(labels):
@@ -142,7 +160,6 @@ def load_stations():
             d = min(rect_dist(p, r) for p in st['dots'])
             if d < LABEL_MAX_DIST:
                 pairs.append((d, si, li))
-    used_s, used_l = set(), set()
     for d, si, li in sorted(pairs):
         if si in used_s or li in used_l:
             continue
@@ -329,6 +346,9 @@ def build_lines(stations, defs):
             for dot in st['dots']:
                 d = np.linalg.norm(pts - dot, axis=1)
                 nodes.update(int(n) for n in np.nonzero(d < DOT_ON_LINE_DIST)[0])
+            # A line passing the stop without a dot there (STOP_OVERRIDES): its closest point
+            if not nodes and st.get('also_on', set()) & set(line['codes']):
+                nodes.add(int(np.argmin(np.linalg.norm(pts - st['dots'].mean(0), axis=1))))
             if nodes:
                 station_nodes[si] = nodes
         line['edges'] = station_edges(pts, adj, station_nodes)

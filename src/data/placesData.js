@@ -1672,8 +1672,8 @@ export const ALL_MAP_PLACES = [
   {
     "id": "sukedhara_chowk",
     "name": "Sukedhara Chowk",
-    "x": 5930.2,
-    "y": 2991.0,
+    "x": 5871.8,
+    "y": 3112.4,
     "tier": "station",
     "category": "Chowk / Intersection"
   },

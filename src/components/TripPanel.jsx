@@ -153,14 +153,15 @@ function LineBadge({ line }) {
   );
 }
 
-function TripSteps({ trip, destination, fromGps }) {
+function TripSteps({ trip, origin, destination, fromGps }) {
   return (
     <ol className="mt-2.5 space-y-2.5 text-xs text-neutral-600 dark:text-neutral-300">
-      {fromGps && trip.walkM > 30 && (
+      {(fromGps || origin?.landmark) && trip.walkM > 30 && (
         <li className="flex gap-2">
           <Footprints className="w-4 h-4 text-neutral-500 shrink-0" />
           <span>
-            Walk ~{formatDistance(trip.walkM)} to <b className="text-neutral-900 dark:text-white">{trip.legs[0].from.name}</b>
+            Walk ~{formatDistance(trip.walkM)}{origin?.landmark && !fromGps ? ` from ${origin.name}` : ''} to{' '}
+            <b className="text-neutral-900 dark:text-white">{trip.legs[0].from.name}</b>
           </span>
         </li>
       )}
@@ -252,7 +253,7 @@ export default function TripPanel({
   // Stop names from a shared link resolve once the stop network has loaded; unknown names are ignored
   useEffect(() => {
     if (!planner) return;
-    const byName = (name) => planner.stations.find((st) => st.name.toLowerCase() === name.toLowerCase()) || null;
+    const byName = planner.stopByName;
     if (typeof initialOrigin === 'string') setOriginStop(byName(initialOrigin));
     if (typeof initialDestination === 'string') setDestination(byName(initialDestination));
   }, [planner, initialOrigin, initialDestination]);
@@ -291,7 +292,7 @@ export default function TripPanel({
 
   const origins = useMemo(() => {
     if (!planner) return [];
-    if (!useGps) return originStop ? [{ station: originStop, walkM: 0 }] : [];
+    if (!useGps) return originStop ? planner.originsFor(originStop) : [];
     return plannedPosition ? planner.nearestStations(plannedPosition.lat, plannedPosition.lon) : [];
   }, [planner, useGps, originStop, plannedPosition]);
 
@@ -319,7 +320,10 @@ export default function TripPanel({
     else if (originStop) addRecentTrip(originStop.name, destination.name);
   }, [trips]);
 
-  const alreadyThere = destination && origins.some((o) => o.station.name === destination.name && o.walkM < 300);
+  // Same place, or starting at the stop of a landmark destination (then it is a walk, not a bus trip)
+  const destStopName = destination?.landmark ? destination.stop.name : destination?.name;
+  const alreadyThere =
+    destination && (originStop?.name === destination.name || origins.some((o) => o.station.name === destStopName && o.walkM < 300));
 
   // A shared link may pick an option; any later re-plan starts at the first one
   useEffect(() => {
@@ -373,6 +377,9 @@ export default function TripPanel({
     }));
     const last = trip.legs[trip.legs.length - 1];
     markers.push({ x: last.to.x, y: last.to.y, kind: 'alight', title: last.to.name, subtitle: 'Get off here' });
+    // Landmarks no bus passes: pin the place itself and the walk
+    if (!useGps && originStop?.landmark) markers.push({ x: originStop.x, y: originStop.y, kind: 'board', title: originStop.name, subtitle: `Walk ~${formatDistance(trip.walkM)} to ${trip.legs[0].from.name}` });
+    if (destination.landmark) markers.push({ x: destination.x, y: destination.y, kind: 'alight', title: destination.name, subtitle: `Walk ~${formatDistance(trip.finalWalkM)} from ${last.to.name}` });
     controls.highlightRoute('Trip', trip.legs.map((l) => l.line.svgId));
     controls.setTripMarkers(markers);
 
@@ -560,7 +567,11 @@ export default function TripPanel({
 
         {/* Results */}
         {alreadyThere ? (
-          <p className="text-sm text-neutral-600 dark:text-neutral-300">You're already at {destination.name}.</p>
+          <p className="text-sm text-neutral-600 dark:text-neutral-300">
+            {destination.landmark && originStop?.name !== destination.name
+              ? `${destination.name} is a ~${formatDistance(destination.walkM)} walk from ${destination.stop.name}.`
+              : `You're already at ${destination.name}.`}
+          </p>
         ) : trips && trips.length === 0 ? (
           <p className="text-sm text-neutral-600 dark:text-neutral-300">No bus connection found between these stops on this map.</p>
         ) : trips ? (
@@ -600,7 +611,7 @@ export default function TripPanel({
                     </button>
                     {isSelected && (
                       <div className="px-2.5 pb-2.5">
-                        <TripSteps trip={t} destination={destination} fromGps={useGps} />
+                        <TripSteps trip={t} origin={originStop} destination={destination} fromGps={useGps} />
                       </div>
                     )}
                   </div>

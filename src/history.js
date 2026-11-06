@@ -83,7 +83,7 @@ export function useHistory(planner) {
   }, []);
   if (!planner) return { stops: [], trips: [] };
   const { stops, trips } = read();
-  const at = (name) => stationByName(planner.stations, name);
+  const at = (name) => stationByName(planner.stations, name) ?? planner.landmarks.find((lm) => lm.name === name) ?? null;
   return {
     stops: stops.map(at).filter(Boolean),
     trips: trips.map((t) => ({ from: at(t.from), to: at(t.to) })).filter((t) => t.from && t.to),

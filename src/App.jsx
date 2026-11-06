@@ -233,7 +233,7 @@ export default function App() {
     mapControlsRef.current?.clearRouteHighlight();
     mapControlsRef.current?.flyToLocation(station.x, station.y, 5.4, {
       name: station.name,
-      subtitle: `${lines.length} bus route${lines.length === 1 ? '' : 's'}`,
+      subtitle: station.landmark ? `Nearest stop: ${station.stop.name}` : `${lines.length} bus route${lines.length === 1 ? '' : 's'}`,
       color: '#0f172a',
     });
     setActivePlace({ name: station.name, x: station.x, y: station.y });
